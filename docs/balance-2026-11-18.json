@@ -1,0 +1,132 @@
+{
+  "sourcePath": "game.js",
+  "sourceSha256": "bf5f67e8a1486538ad156e642538503e32a7ca688015efab0e7f60398e8fdf5c",
+  "seed": 20261118,
+  "rng": "LCG32: 1664525*x+1013904223",
+  "gamesPerPair": 10000,
+  "elapsedSeconds": 3.694,
+  "completed": 30000,
+  "rows": [
+    {
+      "a": "eng",
+      "b": "ast",
+      "games": 10000,
+      "winsA": 4751,
+      "winsB": 5010,
+      "draws": 239,
+      "sides": [
+        {
+          "player": "eng",
+          "opponent": "ast",
+          "games": 5000,
+          "winsA": 2364,
+          "winsB": 2522,
+          "draws": 114
+        },
+        {
+          "player": "ast",
+          "opponent": "eng",
+          "games": 5000,
+          "winsA": 2387,
+          "winsB": 2488,
+          "draws": 125
+        }
+      ],
+      "arena": {
+        "present": {
+          "games": 3372,
+          "winsA": 1653,
+          "winsB": 1594,
+          "draws": 125
+        },
+        "absent": {
+          "games": 6628,
+          "winsA": 3098,
+          "winsB": 3416,
+          "draws": 114
+        }
+      }
+    },
+    {
+      "a": "eng",
+      "b": "kee",
+      "games": 10000,
+      "winsA": 4718,
+      "winsB": 4923,
+      "draws": 359,
+      "sides": [
+        {
+          "player": "eng",
+          "opponent": "kee",
+          "games": 5000,
+          "winsA": 2293,
+          "winsB": 2527,
+          "draws": 180
+        },
+        {
+          "player": "kee",
+          "opponent": "eng",
+          "games": 5000,
+          "winsA": 2425,
+          "winsB": 2396,
+          "draws": 179
+        }
+      ],
+      "arena": {
+        "present": {
+          "games": 3343,
+          "winsA": 1708,
+          "winsB": 1471,
+          "draws": 164
+        },
+        "absent": {
+          "games": 6657,
+          "winsA": 3010,
+          "winsB": 3452,
+          "draws": 195
+        }
+      }
+    },
+    {
+      "a": "ast",
+      "b": "kee",
+      "games": 10000,
+      "winsA": 3968,
+      "winsB": 5779,
+      "draws": 253,
+      "sides": [
+        {
+          "player": "ast",
+          "opponent": "kee",
+          "games": 5000,
+          "winsA": 1904,
+          "winsB": 2963,
+          "draws": 133
+        },
+        {
+          "player": "kee",
+          "opponent": "ast",
+          "games": 5000,
+          "winsA": 2064,
+          "winsB": 2816,
+          "draws": 120
+        }
+      ],
+      "arena": {
+        "present": {
+          "games": 3360,
+          "winsA": 1323,
+          "winsB": 1918,
+          "draws": 119
+        },
+        "absent": {
+          "games": 6640,
+          "winsA": 2645,
+          "winsB": 3861,
+          "draws": 134
+        }
+      }
+    }
+  ],
+  "sourceCommit": "f7609986fceb6bd3c9747681b27de624aa5391e2"
+}
