@@ -156,9 +156,10 @@ function aiPlan(o){
 function chooseAstroCard(title,cards,owner){
  if(!cards.length)return Promise.resolve(null);
  if(owner!=='p'||!HAS_DOM)return Promise.resolve(cards.reduce((best,c)=>!best||c.def.power+c.def.cost*.75>best.def.power+best.def.cost*.75?c:best,null));
+ const hint=title.includes('сброса')?'Выбранная карта уйдёт в сброс, затем ты возьмёшь карту из колоды.':title.includes('соперника')?'Соперник заменит выбранную карту случайной картой из колоды.':'Нажми на карту, которую хочешь взять.';
  return new Promise(resolve=>{
-  openOv(`<div class="lhead"><h2>${title}</h2></div><div class="lib">${cards.map((c,i)=>`<button class="astro-choice" data-i="${i}" style="display:flex;align-items:center;gap:12px;width:100%;padding:10px;margin:6px 0;background:#242039;color:#fff;border:1px solid #76659f;border-radius:12px;text-align:left">${face(c.def)}<span><b>${c.def.name}</b><br>⚡${c.def.cost} · ⚔${c.def.power}<br>${c.def.text}</span></button>`).join('')}</div>`);
-  document.querySelectorAll('.astro-choice').forEach(b=>b.onclick=()=>{const c=cards[+b.dataset.i];closeOv();resolve(c);});
+  openOv(`<section class="astro-pick"><header class="astro-pick-head"><small>ВЫБОР КАРТЫ</small><h2>${title}</h2><p>${hint}</p></header><div class="astro-options">${cards.map((c,i)=>`<button class="astro-choice" data-i="${i}" type="button"><span class="astro-choice-icon">${c.def.icon||'✦'}</span><span class="astro-choice-copy"><b>${c.def.name}</b><span class="astro-choice-stats">⚡ ${c.def.cost} · ⚔ ${c.def.power}</span><span class="astro-choice-text">${c.def.text||'Без эффекта.'}</span></span><span class="astro-choice-arrow" aria-hidden="true">Выбрать</span></button>`).join('')}</div></section>`);
+  document.querySelectorAll('.astro-choice').forEach(b=>b.addEventListener('click',()=>{const c=cards[+b.dataset.i];closeOv();resolve(c);},{once:true}));
  });
 }
 function takeTopOptions(owner,count,chosen,restToBottom=true){
