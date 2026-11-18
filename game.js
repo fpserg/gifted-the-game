@@ -81,7 +81,7 @@ function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random
 function newGame(pf){
  const ef=rndOf(Object.keys(FACTIONS).filter(f=>f!==pf));
  const locs=shuffle([...LOCS]).slice(0,3);
- G={turn:0,fac:{p:pf,e:ef},deck:{p:[],e:[]},hand:{p:[],e:[]},board:[[],[],[]],locs,locRev:[false,false,false],
+ G={turn:0,fac:{p:pf,e:ef},deck:{p:[],e:[]},discard:{p:[],e:[]},hand:{p:[],e:[]},board:[[],[],[]],locs,locRev:[false,false,false],
   spent:{p:0,e:0},discount:{p:0,e:0},trap:[{p:false,e:false},{p:false,e:false},{p:false,e:false}],phase:'plan',sel:null,info:null,busy:false};
  for(const o of ['p','e']){G.deck[o]=shuffle(CARDS.filter(c=>c.f===G.fac[o]).map(d=>inst(d,o)));for(let i=0;i<3;i++)draw(o);}
  startTurn();
@@ -184,13 +184,13 @@ async function resolveAstroCard(c){
   let discard;
   if(o==='p'&&HAS_DOM)discard=await chooseAstroCard('Лунная сова: выбери карту для сброса',G.hand[o],o);
   else discard=G.hand[o].reduce((worst,x)=>!worst||x.def.power+x.def.cost*.7<worst.def.power+worst.def.cost*.7?x:worst,null);
-  if(discard){G.hand[o].splice(G.hand[o].indexOf(discard),1);G.deck[o].unshift(discard);draw(o);}
+  if(discard){G.hand[o].splice(G.hand[o].indexOf(discard),1);G.discard[o].push(discard);draw(o);}
  }
  if(id==='a10'&&G.hand[foe].length){
   let target;
   if(o==='p'&&HAS_DOM)target=await chooseAstroCard('Астромантка: выбери карту соперника для сброса',G.hand[foe],o);
   else target=G.hand[foe].reduce((best,x)=>!best||x.def.cost+power(x)*.5>best.def.cost+power(best)*.5?x:best,null);
-  if(target){G.hand[foe].splice(G.hand[foe].indexOf(target),1);G.deck[foe].unshift(target);draw(foe);}
+  if(target){G.hand[foe].splice(G.hand[foe].indexOf(target),1);G.discard[foe].push(target);draw(foe);}
  }
 }
 
