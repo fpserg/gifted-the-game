@@ -1,6 +1,9 @@
-# 45 изображений — ожидается загрузка
+# Иллюстрации игры
 
-Карты: e1.png—e12.png, a1.png—a12.png, k1.png—k12.png (36 штук).
-Локации: loc_forge.png, loc_waste.png, loc_library.png, loc_tower.png, loc_well.png, loc_fog.png, loc_treasury.png, loc_arena.png, loc_observatory.png (9 штук).
+В репозитории находятся все 45 новых иллюстраций: 36 карт и 9 локаций. Файлы оптимизированы в WebP, имена приведены к нижнему регистру и совпадают с ключами карт и локаций.
 
-Архивы пользователя: Decks.zip (36) и Locations.zip (9). Окончательные изображения **ещё не в репозитории**. Промпты и имена: docs/art-prompts.md.
+- `cards/e1.webp`—`cards/e12.webp`, `cards/a1.webp`—`cards/a12.webp`, `cards/k1.webp`—`cards/k12.webp` — карты трёх фракций.
+- `locations/loc_forge.webp`, `loc_waste.webp`, `loc_library.webp`, `loc_tower.webp`, `loc_well.webp`, `loc_fog.webp`, `loc_treasury.webp`, `loc_arena.webp`, `loc_observatory.webp` — локации.
+- `ASSETS_MANIFEST.json` содержит исходный путь каждого файла, размер и SHA-256.
+
+Игровой интерфейс использует эти файлы напрямую из папок `assets/cards` и `assets/locations`.
