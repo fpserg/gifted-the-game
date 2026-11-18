@@ -235,31 +235,34 @@ function render(){
  $('end').disabled=G.phase!=='plan';
  $('end').textContent=G.phase==='plan'?(G.turn===6?'Финальный ход':'Завершить ход'):'Раскрытие…';
  $('hand').innerHTML=G.hand.p.map(c=>{const ec=effCost('p',c);
-  return `<div class="hc f-${c.def.f}${G.sel===c.uid?' sel':''}${ec>left?' dim':''}" data-uid="${c.uid}">${face(c.def)}<span class="cost${ec<c.def.cost?' cheap':''}">${ec}</span><div class="nm">${c.def.name}</div><span class="pw">${c.def.power}</span></div>`;}).join('')||'<div style="color:var(--mut);font-size:12px;padding:30px 6px">Рука пуста</div>';
+  return `<div role="button" tabindex="0" aria-label="${c.def.name}, энергия ${ec}, сила ${c.def.power}" class="hc f-${c.def.f}${G.sel===c.uid?' sel':''}${ec>left?' dim':''}" data-uid="${c.uid}">${face(c.def)}<span class="cost${ec<c.def.cost?' cheap':''}">${ec}</span><div class="nm">${c.def.name}</div><span class="pw">${c.def.power}</span></div>`;}).join('')||'<div style="color:var(--mut);font-size:12px;padding:30px 6px">Рука пуста</div>';
  const ic=G.info;
  $('info').innerHTML=ic?ic:(G.phase==='plan'?'Выбери карту в руке, затем нажми на локацию. Нажми на свою выложенную карту, чтобы вернуть её в руку. Карты раскрываются в конце хода.':'Карты раскрываются…');
+ renderCoach();
 }
 function findCard(uid){for(const l of G.board)for(const c of l)if(c.uid===uid)return c;return G.hand.p.find(c=>c.uid===uid);}
 
 if(HAS_DOM){
- $('hand').addEventListener('click',e=>{const el=e.target.closest('.hc');if(!el||!G)return;const uid=+el.dataset.uid;
+ $('hand').addEventListener('click',e=>{const el=e.target.closest('.hc');if(!el||!G||G.phase!=='plan'||Date.now()<suppressClickUntil)return;const uid=+el.dataset.uid;
   const c=G.hand.p.find(x=>x.uid===uid);G.sel=G.sel===uid?null:uid;G.info=cardInfo(c);render();});
- $('board').addEventListener('click',e=>{if(!G)return;
+ $('board').addEventListener('click',e=>{if(!G||Date.now()<suppressClickUntil)return;
   const mc=e.target.closest('.mc');const lane=e.target.closest('.lane');const l=lane?+lane.dataset.l:-1;
   const sel=G.sel&&G.hand.p.find(c=>c.uid===G.sel);
   if(sel&&l>=0&&G.phase==='plan'){
    if(!canPlay('p',l)){G.info='Сюда сейчас нельзя сыграть карту.';render();return;}
    if(effCost('p',sel)>G.turn-G.spent.p){G.info='Не хватает энергии ⚡';render();return;}
-   place('p',sel,l);G.sel=null;G.info=cardInfo(sel);render();return;}
+   place('p',sel,l);tutorialEvent('place');G.sel=null;G.info=cardInfo(sel);render();return;}
   if(mc){const c=findCard(+mc.dataset.uid);if(!c)return;
-   if(c.owner==='p'&&c.pending&&G.phase==='plan'){unplace(c);G.info=`«${c.def.name}» возвращена в руку.`;render();return;}
+   if(c.owner==='p'&&c.pending&&G.phase==='plan'){unplace(c);tutorialEvent('undo');G.info=`«${c.def.name}» возвращена в руку.`;render();return;}
    G.info=(c.owner==='e'&&!c.revealed)?'Карта врага ещё не раскрыта.':cardInfo(c);render();return;}
   const lc=e.target.closest('.loc');if(lc){const L=loc(+lc.dataset.l);G.info=L?`<b>${L.icon} ${L.name}</b><br>${L.text}`:'Локация откроется позже.';render();}
  });
- $('end').onclick=()=>{G.info=null;endTurn();};
+ $('end').onclick=()=>{tutorialEvent('end');G.info=null;endTurn();};
+ $('helpBtn').onclick=()=>{tutorialActive=true;tutorialStep=0;render();};
+ $('hand').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('.hc')){e.preventDefault();e.target.closest('.hc').click();}});
  $('libBtn').onclick=()=>library(G?G.fac.p:'eng','game');
 }
-function openOv(h){$('ovbox').innerHTML=h;$('ov').classList.remove('hide');}
+function openOv(h){$('ovbox').classList.remove('hero-box');$('ovbox').innerHTML=h;$('ov').classList.remove('hide');}
 function closeOv(){$('ov').classList.add('hide');}
 let libFrom='game';
 function library(tab,from){if(from)libFrom=from;
@@ -276,14 +279,83 @@ function library(tab,from){if(from)libFrom=from;
  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>library(b.dataset.t));
  $('libx').onclick=()=>{if(libFrom==='pick')heroPick();else closeOv();};
 }
-function heroPick(){
- openOv(`<h2>GIFTED: Битва куполов</h2>
- <p>Прототип карточного боя. Шесть ходов, три локации. На ходу N у тебя N энергии ⚡. Обе стороны выкладывают карты втёмную, в конце хода карты раскрываются и срабатывают их эффекты.</p>
- <ul><li>Локацию выигрывает тот, у кого там больше силы.</li><li>Побеждает тот, кто взял 2 локации из 3.</li><li>Локации открываются по одной на ходах 1–3, у каждой своё правило.</li></ul>
- <p><b style="color:var(--acc)">Выбери героя:</b></p>
- <div class="heroes">${Object.entries(FACTIONS).map(([k,F])=>`<button class="hero" data-f="${k}" style="background:linear-gradient(120deg,${F.color}44,${F.color}11)"><span class="hi"><img src="${IMG[AV[k]]}" alt=""></span><div><b>${F.name}</b><span>${F.desc}</span></div></button>`).join('')}</div>
- <div style="margin-top:10px"><button class="btn sec" id="pickLib" style="width:100%">📖 Библиотека карт</button></div>`);
- $('pickLib').onclick=()=>library('eng','pick');
- document.querySelectorAll('.hero').forEach(b=>b.onclick=()=>{closeOv();logLines=[];newGame(b.dataset.f);});
+// Presentation and guidance state never participates in card effects or scoring.
+let pickedHero='eng',tutorialActive=false,tutorialStep=0,suppressClickUntil=0;
+const tutorialSeen=()=>{try{return localStorage.getItem('gifted-tutorial-v1')==='done';}catch{return false;}};
+function finishTutorial(){tutorialActive=false;try{localStorage.setItem('gifted-tutorial-v1','done');}catch{}renderCoach();}
+function tutorialEvent(event){
+ if(!tutorialActive)return;
+ if(event==='place'&&tutorialStep<2)tutorialStep=2;
+ else if(event==='undo'&&tutorialStep===2)tutorialStep=3;
+ else if(event==='end')tutorialStep=4;
 }
-if(HAS_DOM)heroPick();
+function renderCoach(){
+ if(!HAS_DOM)return;const el=$('coach');if(!el)return;
+ el.classList.toggle('hide',!tutorialActive||!G);
+ document.querySelectorAll('.teach').forEach(e=>e.classList.remove('teach'));
+ if(!tutorialActive||!G)return;
+ let title,body,target;
+ if(G.phase==='over'){title='Матч завершён';body='Сравни силу в трёх локациях. При равенстве числа выигранных локаций решает общая сила.';}
+ else if(G.phase==='reveal'){title='Карты раскрываются';body='Теперь срабатывают эффекты карт и локаций. Следи за изменением силы.';}
+ else if(tutorialStep>=4){title=`Ход ${G.turn} из 6`;body='Энергия обновилась. Локации открываются на ходах 1–3. Забери большинство; на Кривой арене выигрывает меньшая сила.';target='board';}
+ else if(!G.hand.p.some(c=>effCost('p',c)<=G.turn-G.spent.p)&&!G.board.some(l=>l.some(c=>c.owner==='p'&&c.pending))){title='Сейчас не хватает энергии';body='Можно пропустить ход. На следующем ходу энергии станет больше, и ты возьмёшь ещё карту.';target='end';}
+ else if(tutorialStep===2){title='Попробуй вернуть карту';body='До раскрытия нажми на свою выложенную карту или потяни её вниз в руку. Энергия вернётся.';target='board';}
+ else if(tutorialStep===3){title='Заверши подготовку';body='Сыграй карту снова. Когда всё готово, нажми «Завершить ход». Враг тоже готовит карты скрытно.';target='end';}
+ else if(G.sel){title='Выбери локацию';body='Нажми на подсвеченную локацию. Можно также потянуть карту из руки вверх и отпустить над нужной локацией.';target='board';}
+ else{title='Выбери карту';body='Синее число — стоимость, светлое — сила. Нажми на доступную карту в руке. Цель — выиграть больше локаций, чем соперник.';target='hand';}
+ if(target)$(target).classList.add('teach');
+ el.innerHTML=`<div><small>ОБУЧЕНИЕ</small><b>${title}</b><p>${body}</p></div><button class="coach-close" aria-label="Завершить обучение">${G.phase==='over'?'Понятно':'Пропустить'}</button>`;
+ el.querySelector('button').onclick=finishTutorial;
+}
+function startMatch(training){closeOv();logLines=[];tutorialActive=training;tutorialStep=0;newGame(pickedHero);}
+function heroPick(){
+ const seen=tutorialSeen();
+ openOv(`<div class="pick-heading"><small>GIFTED · БИТВА КУПОЛОВ</small><h2>Выбери своего героя</h2><p>Три стиля игры. Шесть ходов. Одна победа.</p></div>
+ <div class="heroes">${Object.entries(FACTIONS).map(([k,F])=>`<button class="hero hero-card" data-f="${k}" aria-pressed="${k===pickedHero}" style="--hero-color:${F.color}"><img src="${IMG[AV[k]]}" alt=""><div class="hero-copy"><small>${k==='eng'?'СОЗИДАНИЕ':k==='ast'?'ЗВЁЗДНАЯ МАГИЯ':'ТЕНЕВОЙ КОНТРОЛЬ'}</small><b>${F.name}</b><span>${F.desc}</span><em>${k===pickedHero?'Выбран':'Выбрать'}</em></div></button>`).join('')}</div>
+ <div class="pick-actions"><button class="btn" id="startMatch">В бой · ${FACTIONS[pickedHero].name}</button><button class="btn sec" id="training">${seen?'Повторить обучение':'Начать с обучением'}</button><button class="btn sec" id="pickLib">Все карты</button></div><p class="pick-rule">Выиграй большинство локаций. При равенстве решает общая сила.</p>`);
+ $('ovbox').classList.add('hero-box');
+ document.querySelectorAll('.hero').forEach(b=>b.onclick=()=>{pickedHero=b.dataset.f;heroPick();});
+ $('startMatch').onclick=()=>startMatch(!seen);
+ $('training').onclick=()=>startMatch(true);
+ $('pickLib').onclick=()=>library(pickedHero,'pick');
+}
+// An upward drag plays a hand card; horizontal swipes remain native hand scrolling.
+function installGestures(){
+ let drag=null;
+ function clear(){if(drag&&drag.ghost)drag.ghost.remove();drag=null;document.querySelectorAll('.drop-target').forEach(e=>e.classList.remove('drop-target'));}
+ $('app').addEventListener('pointerdown',e=>{
+  if(!G||G.phase!=='plan'||!e.isPrimary||e.button!==0||!$('ov').classList.contains('hide'))return;
+  const card=e.target.closest('#hand .hc, #board .mc');if(!card)return;
+  const c=findCard(+card.dataset.uid);if(!c||c.owner!=='p'||(c.lane>=0&&!c.pending))return;
+  drag={id:e.pointerId,x:e.clientX,y:e.clientY,c,source:card,ghost:null};
+ });
+ window.addEventListener('pointermove',e=>{
+  if(!drag||drag.id!==e.pointerId)return;
+  const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+  if(!drag.ghost){
+   if(Math.abs(dx)>18&&Math.abs(dx)>Math.abs(dy)){clear();return;}
+   if(Math.abs(dy)<14)return;
+   if(drag.c.lane<0&&dy>0){clear();return;}
+   drag.ghost=drag.source.cloneNode(true);drag.ghost.classList.add('drag-ghost');drag.ghost.removeAttribute('tabindex');drag.ghost.setAttribute('aria-hidden','true');document.body.append(drag.ghost);
+   suppressClickUntil=Date.now()+500;
+  }
+  drag.ghost.style.left=(e.clientX-32)+'px';drag.ghost.style.top=(e.clientY-45)+'px';
+  document.querySelectorAll('.drop-target').forEach(el=>el.classList.remove('drop-target'));
+  const target=document.elementFromPoint(e.clientX,e.clientY);
+  const lane=target&&target.closest('.lane');
+  if(drag.c.lane<0&&lane&&canPlay('p',+lane.dataset.l)&&effCost('p',drag.c)<=G.turn-G.spent.p)lane.classList.add('drop-target');
+  if(drag.c.pending&&target&&target.closest('#hand'))$('hand').classList.add('drop-target');
+ },{passive:true});
+ window.addEventListener('pointerup',e=>{
+  if(!drag||drag.id!==e.pointerId)return;
+  if(drag.ghost){
+   suppressClickUntil=Date.now()+500;
+   const c=drag.c,target=document.elementFromPoint(e.clientX,e.clientY),lane=target&&target.closest('.lane');
+   if(G.phase==='plan'&&c.lane<0&&lane){const l=+lane.dataset.l;if(canPlay('p',l)&&effCost('p',c)<=G.turn-G.spent.p){place('p',c,l);tutorialEvent('place');G.sel=null;G.info=cardInfo(c);}else G.info='Сюда нельзя сыграть карту: проверь энергию и свободные места.';}
+   else if(G.phase==='plan'&&c.pending&&target&&target.closest('#hand')){unplace(c);tutorialEvent('undo');G.info='Карта возвращена в руку.';}
+   clear();render();
+  }else clear();
+ });
+ window.addEventListener('pointercancel',clear);window.addEventListener('blur',clear);
+}
+if(HAS_DOM){installGestures();heroPick();}
