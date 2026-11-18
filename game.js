@@ -258,7 +258,7 @@ if(HAS_DOM){
   const lc=e.target.closest('.loc');if(lc){const L=loc(+lc.dataset.l);G.info=L?`<b>${L.icon} ${L.name}</b><br>${L.text}`:'Локация откроется позже.';render();}
  });
  $('end').onclick=()=>{tutorialEvent('end');G.info=null;endTurn();};
- $('helpBtn').onclick=()=>{tutorialActive=true;tutorialStep=0;render();};
+ $('helpBtn').onclick=()=>{tutorialActive=true;tutorialStep=G&&G.board.some(l=>l.some(c=>c.owner==='p'&&c.pending))?2:0;render();};
  $('hand').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('.hc')){e.preventDefault();e.target.closest('.hc').click();}});
  $('libBtn').onclick=()=>library(G?G.fac.p:'eng','game');
 }
@@ -287,7 +287,7 @@ function tutorialEvent(event){
  if(!tutorialActive)return;
  if(event==='place'&&tutorialStep<2)tutorialStep=2;
  else if(event==='undo'&&tutorialStep===2)tutorialStep=3;
- else if(event==='end')tutorialStep=4;
+ else if(event==='end'&&tutorialStep>=2)tutorialStep=4;
 }
 function renderCoach(){
  if(!HAS_DOM)return;const el=$('coach');if(!el)return;

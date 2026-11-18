@@ -12,7 +12,7 @@ const run=s=>vm.runInContext(s,context);
 (async()=>{
  assert(el('ovbox').innerHTML.includes('Выбери своего героя'));
  run("pickedHero='eng';startMatch(true);FAST=true;");
- assert(el('coach').innerHTML.includes('ОБУЧЕНИЕ'));
+ assert(el('coach').innerHTML.includes('ОБУЧЕНИЕ'));run("tutorialEvent('end')");assert(run('tutorialStep')===0);
  run("G.hand.p=[inst(CARDS.find(c=>c.id==='e1'),'p')];G.spent.p=0;render();");
  const uid=run('G.hand.p[0].uid');const hc={dataset:{uid},closest:()=>hc};
  el('hand').handlers.click({target:hc});assert(run('G.sel')===uid);assert(el('coach').innerHTML.includes('Выбери локацию'));
