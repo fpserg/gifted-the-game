@@ -35,7 +35,7 @@ const CARDS=[
 // ---- Астромантка: адаптация, манипуляция + темп ----
 {id:'a1',f:'ast',name:'Звёздная пыль',cost:1,power:1,icon:'✨',text:'Классовая карта. При раскрытии: можешь переместить эту карту в другую открытую локацию.'},
 {id:'a2',f:'ast',name:'Чёрный кот',cost:1,power:2,icon:'🐈‍⬛',text:'Темповая карта. При раскрытии: следующая сыгранная тобой карта стоит на 1 меньше.',onReveal:c=>{G.discount[c.owner]=1;}},
-{id:'a3',f:'ast',name:'Гадалка',cost:2,power:2,icon:'🔮',text:'Классовая карта. При раскрытии: перемести одну свою другую раскрытую карту в другую открытую локацию.'},
+{id:'a3',f:'ast',name:'Гадалка',cost:2,power:2,icon:'🔮',text:'Классовая карта. При раскрытии: перемести одну раскрытую карту соперника в другую открытую локацию.'},
 {id:'a4',f:'ast',name:'Комета',cost:2,power:3,icon:'☄️',text:'Темповая карта. При раскрытии: +2 силы, если у тебя есть карта в другой локации.',onReveal:c=>{if(allRev(c.owner).some(t=>t!==c&&t.lane!==c.lane))buff(c,2);}},
 {id:'a5',f:'ast',name:'Лунная сова',cost:3,power:2,icon:'🦉',text:'Классовая карта. Если это не финальный ход, выбери открытую локацию: соперник не сможет выкладывать туда карты на следующем ходу.'},
 {id:'a6',f:'ast',name:'Астролябия',cost:3,power:3,icon:'🧭',text:'Темповая карта. В конце каждого хода: +1 силы себе.',endTurn:c=>buff(c,1)},
@@ -212,10 +212,35 @@ async function resolveAstroCard(c){
   if(to!==null)moveCard(c,to);
  }
  if(id==='a3'){
-  const cards=allRev(o).filter(t=>t!==c);
+  const cards=allRev(foe);
   if(cards.length){
-   const source=await chooseAstroCard('Гадалка: выбери свою карту для перемещения',cards,o,t=>laneTotal(t.lane,o)-laneTotal(t.lane,foe));
-   if(source){const lanes=openMoveLanes(o,source.lane);const to=await chooseAstroLane('Гадалка: выбери новую локацию',lanes,o,l=>astroLaneScore(l,o,'move'));if(to!==null)moveCard(source,to);}
+   const moveScore=(target,to)=>{
+    const from=target.lane;if(to===from)return -999;
+    const laneValue=l=>{const w=laneWinner(l);return w===o?1:w===foe?-1:0;};
+    const before=laneValue(from)+laneValue(to);
+    const src=G.board[from],dst=G.board[to],idx=src.indexOf(target);
+    if(idx<0)return -999;
+    src.splice(idx,1);dst.push(target);target.lane=to;
+    const after=laneValue(from)+laneValue(to);
+    const margin=(laneTotal(from,o)-laneTotal(from,foe))+(laneTotal(to,o)-laneTotal(to,foe));
+    dst.pop();src.splice(idx,0,target);target.lane=from;
+    return (after-before)*100+margin*.001;
+   };
+   if(o!=='p'||!HAS_DOM){
+    let best=null;
+    for(const target of cards)for(const lane of openMoveLanes(foe,target.lane)){
+     const score=moveScore(target,lane);
+     if(!best||score>best.score)best={target,lane,score};
+    }
+    if(best)moveCard(best.target,best.lane);
+   }else{
+    const source=await chooseAstroCard('Гадалка: выбери карту соперника для перемещения',cards,o);
+    if(source){
+     const lanes=openMoveLanes(foe,source.lane);
+     const to=await chooseAstroLane('Гадалка: выбери новую локацию',lanes,o,l=>moveScore(source,l));
+     if(to!==null)moveCard(source,to);
+    }
+   }
   }
  }
  if(id==='a5'&&G.turn<6){
