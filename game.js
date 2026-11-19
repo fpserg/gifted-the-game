@@ -155,14 +155,27 @@ function aiPlan(o){
 }
 
 /* ================= ПРОКРУТКА КОЛОДЫ АСТРОМАНТКИ ================= */
+let astroChoice=null;
+function finishAstroChoice(value){
+ if(!astroChoice)return;
+ const resolve=astroChoice.resolve;astroChoice=null;G.info=null;render();resolve(value);
+}
+function astroChoiceHtml(){
+ if(!astroChoice)return '';
+ const c=astroChoice,title=escapeHtml(c.title);
+ let options='';
+ if(c.kind==='list-card')options=`<div class="astro-inline-options">${c.cards.map((card,i)=>`<button class="astro-inline-option" data-i="${i}" type="button"><b>${card.def.icon||'✦'} ${escapeHtml(card.def.name)}</b><span>⚡ ${card.def.cost} · ⚔ ${card.def.power}</span><small>${escapeHtml(card.def.text||'Без эффекта.')}</small></button>`).join('')}</div>`;
+ const prompt=c.kind==='board-card'?'Нажми на подсвеченную карту на столе.':c.kind==='lane'?'Нажми на одну из подсвеченных локаций.':'Выбери карту из списка.';
+ return `<section class="astro-inline"><header><b>${title}</b><span>${prompt}</span></header>${options}${c.optional?'<button class="astro-skip" type="button">Оставить как есть</button>':''}</section>`;
+}
 function chooseAstroCard(title,cards,owner,scoreFn){
  if(!cards.length)return Promise.resolve(null);
  const score=scoreFn||((c)=>c.def.power+c.def.cost*.75);
  if(owner!=='p'||!HAS_DOM)return Promise.resolve(cards.reduce((best,c)=>!best||score(c)>score(best)?c:best,null));
- const hint=title.includes('сброса')?'Выбранная карта уйдёт в сброс, затем ты возьмёшь карту из колоды.':title.includes('соперника')?'Соперник заменит выбранную карту случайной картой из колоды.':title.includes('силу')?'Выбери карту, с которой перенести бонусную силу.':'Нажми на карту, которую хочешь выбрать.';
+ const boardCards=cards.every(c=>c.revealed&&c.lane>=0);
  return new Promise(resolve=>{
-  openOv(`<section class="astro-pick"><header class="astro-pick-head"><small>ВЫБОР КАРТЫ</small><h2>${title}</h2><p>${hint}</p></header><div class="astro-options">${cards.map((c,i)=>`<button class="astro-choice" data-i="${i}" type="button"><span class="astro-choice-icon">${c.def.icon||'✦'}</span><span class="astro-choice-copy"><b>${c.def.name}</b><span class="astro-choice-stats">⚡ ${c.def.cost} · ⚔ ${power(c)}</span><span class="astro-choice-text">${c.def.text||'Без эффекта.'}</span></span><span class="astro-choice-arrow" aria-hidden="true">Выбрать</span></button>`).join('')}</div></section>`);
-  document.querySelectorAll('.astro-choice').forEach(b=>b.addEventListener('click',()=>{const c=cards[+b.dataset.i];closeOv();resolve(c);},{once:true}));
+  astroChoice={kind:boardCards?'board-card':'list-card',title,cards,resolve,optional:false};
+  G.info=null;render();
  });
 }
 function takeTopOptions(owner,count,chosen,restToBottom=true){
@@ -174,16 +187,16 @@ function takeTopOptions(owner,count,chosen,restToBottom=true){
  if(restToBottom)deck.unshift(...rest);else deck.push(...rest);
  return c;
 }
-function chooseAstroLane(title,lanes,owner,scoreFn){
+function chooseAstroLane(title,lanes,owner,scoreFn,optional=false){
  if(!lanes.length)return Promise.resolve(null);
  const score=scoreFn||(()=>0);
  if(owner!=='p'||!HAS_DOM)return Promise.resolve(lanes.reduce((best,l)=>best===null||score(l)>score(best)?l:best,null));
- const hint='Выбери одну из открытых локаций.';
  return new Promise(resolve=>{
-  openOv(`<section class="astro-pick"><header class="astro-pick-head"><small>ВЫБОР ЛОКАЦИИ</small><h2>${title}</h2><p>${hint}</p></header><div class="astro-options">${lanes.map(l=>{const L=loc(l);return `<button class="astro-choice" data-l="${l}" type="button"><span class="astro-choice-icon">${L.icon}</span><span class="astro-choice-copy"><b>${L.name}</b><span class="astro-choice-stats">Ты ${laneTotal(l,owner)} · соперник ${laneTotal(l,other(owner))}</span><span class="astro-choice-text">${L.text}</span></span><span class="astro-choice-arrow" aria-hidden="true">Выбрать</span></button>`;}).join('')}</div></section>`);
-  document.querySelectorAll('.astro-choice').forEach(b=>b.addEventListener('click',()=>{const l=+b.dataset.l;closeOv();resolve(l);},{once:true}));
+  astroChoice={kind:'lane',title,lanes,resolve,optional};
+  G.info=null;render();
  });
 }
+function escapeHtml(value){return String(value).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));}
 function astroLaneScore(l,owner,mode){
  const foe=other(owner),diff=laneTotal(l,owner)-laneTotal(l,foe),L=loc(l);
  if(mode==='block')return cardsIn(l,foe).length*2+(Math.abs(diff)<=6?4:0)+laneTotal(l,foe)*.05;
@@ -195,7 +208,7 @@ async function resolveAstroCard(c){
  const o=c.owner,foe=other(o),id=c.def.id;
  if(id==='a1'){
   const lanes=openMoveLanes(o,c.lane);
-  const to=await chooseAstroLane('Звёздная пыль: выбери, куда переместить карту',lanes,o,l=>astroLaneScore(l,o,'move'));
+  const to=await chooseAstroLane('Звёздная пыль: выбери, куда переместить карту',lanes,o,l=>astroLaneScore(l,o,'move'),true);
   if(to!==null)moveCard(c,to);
  }
  if(id==='a3'){
@@ -292,7 +305,8 @@ function miniCard(c){
  const p=power(c),d=p-c.def.power;
  const fl=c.flash&&now()-c.flash.at<800?`<span class="fl ${c.flash.up?'up':'dn'}">${c.flash.t}</span>`:'';
  const pop=c.revAt&&now()-c.revAt<500?' pop':'';
- return `<div class="mc f-${c.def.f}${c.pending?' pending':''}${pop}" data-uid="${c.uid}">${face(c.def)}<span class="cost">${c.def.cost}</span><span class="pw ${d>0?'up':d<0?'dn':''}">${p}</span>${fl}</div>`;
+ const astroTarget=astroChoice&&astroChoice.kind==='board-card'&&astroChoice.cards.some(x=>x.uid===c.uid);
+ return `<div class="mc f-${c.def.f}${c.pending?' pending':''}${pop}${astroTarget?' astro-card-target':''}" data-uid="${c.uid}">${face(c.def)}<span class="cost">${c.def.cost}</span><span class="pw ${d>0?'up':d<0?'dn':''}">${p}</span>${fl}</div>`;
 }
 function slots(l,o){const cs=G.board[l].filter(c=>c.owner===o);const cap=capOf(l);let h='';
  for(let i=0;i<4;i++){if(cs[i])h+=miniCard(cs[i]);else h+=i<cap?'<div class="slot"></div>':'<div class="slot" style="border:none"></div>';}
@@ -307,9 +321,10 @@ function render(){
  let b='';
  for(let l=0;l<3;l++){
   const L=loc(l),wp=laneWinner(l),blocked=G.blockedUntil.p[l]===G.turn,foeBlocked=G.blockedUntil.e[l]===G.turn,suppressed=L&&locationRuleDisabled(l);
+  const astroLaneTarget=astroChoice&&astroChoice.kind==='lane'&&astroChoice.lanes.includes(l);
   const can=sel&&G.phase==='plan'&&canPlay('p',l)&&effCost('p',sel)<=G.turn-G.spent.p;
   const status=blocked?'⛔ Ты не можешь играть здесь в этом ходу.':foeBlocked?'⛔ Соперник не может играть здесь в этом ходу.':suppressed?'⏸ Правило отключено на этот ход.':'';
-  b+=`<div class="lane${can?' can':''}${blocked?' locked':''}" data-l="${l}">${slots(l,'e')}
+  b+=`<div class="lane${can?' can':''}${blocked?' locked':''}${astroLaneTarget?' astro-lane-target':''}" data-l="${l}">${slots(l,'e')}
    <div class="loc${L?'':' hidden'}${blocked?' blocked':''}${suppressed?' suppressed':''}" data-l="${l}" style="${L?`background:linear-gradient(#2a2448b8,#1b1730f0),url(${IMG[LOCIMG[L.id]]}) center/cover`:''}"><div class="sc${wp==='e'?' win':''}">${laneTotal(l,'e')}</div>
    <div class="ln">${L?L.icon+' '+L.name:'❔ Скрыта'}</div><div class="lt">${L?L.text+(status?'<br>'+status:''):'Откроется на ходу '+(l+1)}</div>
    <div class="sc${wp==='p'?' win':''}">${laneTotal(l,'p')}</div></div>${slots(l,'p')}</div>`;}
@@ -322,7 +337,7 @@ function render(){
  $('hand').innerHTML=G.hand.p.map(c=>{const ec=effCost('p',c);
   return `<div role="button" tabindex="0" aria-label="${c.def.name}, энергия ${ec}, сила ${c.def.power}" class="hc f-${c.def.f}${G.sel===c.uid?' sel':''}${ec>left?' dim':''}" data-uid="${c.uid}">${face(c.def)}<span class="cost${ec<c.def.cost?' cheap':''}">${ec}</span><div class="nm">${c.def.name}</div><span class="pw">${c.def.power}</span></div>`;}).join('')||'<div style="color:var(--mut);font-size:12px;padding:30px 6px">Рука пуста</div>';
  const ic=G.info;
- $('info').innerHTML=ic?ic:(G.phase==='plan'?'Выбери карту в руке, затем нажми на локацию. Нажми на свою выложенную карту, чтобы вернуть её в руку. Карты раскрываются в конце хода.':'Карты раскрываются…');
+ $('info').innerHTML=astroChoice?astroChoiceHtml():ic?ic:(G.phase==='plan'?'Выбери карту в руке, затем нажми на локацию. Нажми на свою выложенную карту, чтобы вернуть её в руку. Карты раскрываются в конце хода.':'Карты раскрываются…');
  renderCoach();
 }
 function findCard(uid){for(const l of G.board)for(const c of l)if(c.uid===uid)return c;return G.hand.p.find(c=>c.uid===uid);}
@@ -332,6 +347,11 @@ if(HAS_DOM){
   const c=G.hand.p.find(x=>x.uid===uid);G.sel=G.sel===uid?null:uid;G.info=cardInfo(c);render();});
  $('board').addEventListener('click',e=>{if(!G||Date.now()<suppressClickUntil)return;
   const mc=e.target.closest('.mc');const lane=e.target.closest('.lane');const l=lane?+lane.dataset.l:-1;
+  if(astroChoice){
+   if(astroChoice.kind==='board-card'&&mc){const card=findCard(+mc.dataset.uid);if(astroChoice.cards.includes(card)){finishAstroChoice(card);return;}}
+   if(astroChoice.kind==='lane'&&lane&&astroChoice.lanes.includes(l)){finishAstroChoice(l);return;}
+   return;
+  }
   const sel=G.sel&&G.hand.p.find(c=>c.uid===G.sel);
   if(sel&&l>=0&&G.phase==='plan'){
    if(!canPlay('p',l)){G.info='Сюда сейчас нельзя сыграть карту.';render();return;}
@@ -342,6 +362,7 @@ if(HAS_DOM){
    G.info=(c.owner==='e'&&!c.revealed)?'Карта врага ещё не раскрыта.':cardInfo(c);render();return;}
   const lc=e.target.closest('.loc');if(lc){const L=loc(+lc.dataset.l);G.info=L?`<b>${L.icon} ${L.name}</b><br>${L.text}`:'Локация откроется позже.';render();}
  });
+ $('info').addEventListener('click',e=>{if(!astroChoice)return;const skip=e.target.closest('.astro-skip');if(skip&&astroChoice.optional){finishAstroChoice(null);return;}const option=e.target.closest('.astro-inline-option');if(option&&astroChoice.kind==='list-card'){const card=astroChoice.cards[+option.dataset.i];if(card)finishAstroChoice(card);}});
  $('end').onclick=()=>{tutorialEvent('end');G.info=null;endTurn();};
  $('helpBtn').onclick=()=>{tutorialActive=true;tutorialStep=G&&G.board.some(l=>l.some(c=>c.owner==='p'&&c.pending))?2:0;render();};
  $('hand').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('.hc')){e.preventDefault();e.target.closest('.hc').click();}});
