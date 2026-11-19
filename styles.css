@@ -185,3 +185,28 @@ button:focus-visible,[role=button]:focus-visible{outline:3px solid var(--acc);ou
 .lane.locked{border-color:#ff5d7388}
 .loc.blocked{box-shadow:inset 0 0 0 2px #ff5d73}
 .loc.suppressed{box-shadow:inset 0 0 0 2px #a78bfa}
+
+
+/* Inline Astromancer choices keep the board and hand in view. */
+.astro-inline{display:flex;flex-direction:column;gap:7px;width:100%}
+.astro-inline>header{display:flex;flex-direction:column;gap:2px;line-height:1.25}
+.astro-inline>header b{font-size:13px;color:var(--acc)}
+.astro-inline>header span{font-size:11px;color:var(--mut)}
+.astro-inline-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;max-height:190px;overflow:auto;overscroll-behavior:contain}
+.astro-inline-option{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0;min-height:76px;padding:6px;border:1px solid #76659f;border-radius:8px;background:#242039;color:var(--txt);text-align:left;font:inherit;cursor:pointer;touch-action:manipulation}
+.astro-inline-option:hover,.astro-inline-option:focus-visible{border-color:#c5b7ff;background:#30284b;outline:2px solid #b7a4ff;outline-offset:1px}
+.astro-inline-option b{font-size:11.5px;line-height:1.2;overflow-wrap:anywhere}
+.astro-inline-option span{font-size:10px;color:#c5b7ff;font-weight:700}
+.astro-inline-option small{font-size:10px;line-height:1.2;color:#ded9ef;overflow-wrap:anywhere}
+.astro-lane-target{border-color:var(--acc)!important;box-shadow:0 0 0 2px #ffd16666;cursor:pointer}
+.mc.astro-card-target{outline:3px solid var(--good);outline-offset:-3px;box-shadow:0 0 10px #4ade80aa;cursor:pointer}
+.astro-skip{align-self:flex-start;border:1px solid #ffffff33;border-radius:8px;background:transparent;color:var(--mut);font:inherit;font-size:11px;padding:6px 9px;cursor:pointer;min-height:32px}
+@media(max-width:360px){
+ .astro-inline-options{grid-template-columns:repeat(2,minmax(0,1fr));max-height:180px}
+ .astro-inline-option{min-height:70px}
+}
+@media(orientation:landscape) and (max-height:600px) and (min-width:560px){
+ #info .astro-inline-options{max-height:230px}
+ #info .astro-inline-option{min-height:64px}
+ #info .astro-inline-option small{font-size:9px}
+}
