@@ -1,4 +1,4 @@
-# GIFTED: The Game — Битва куполов
+# Game of Gifts
 
 Карточная игра для экосистемы токена GIFTED (TON).
 
@@ -20,4 +20,4 @@
 ## Принципы
 Не менять токеномику GIFTED; награды — из выручки игры; без pay-to-win. Изменения механик согласовывать с геймдизайнером. После изменения карт обновлять `docs/gifted-cards.md`. Разработка ведётся через ветки и PR.
 
-Ожидаемый адрес GitHub Pages: https://fpserg.github.io/gifted-the-game/ — публикация этой версии ещё не проверена.
+Играть: https://fpserg.github.io/gifted-the-game/.
