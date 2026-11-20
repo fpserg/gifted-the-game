@@ -33,7 +33,7 @@ const CARDS=[
 {id:'e11',f:'eng',name:'Дерево-остров',cost:6,power:9,icon:'🌳',art:1,text:'Артефакт.'},
 {id:'e12',f:'eng',name:'Великая машина',cost:6,power:5,icon:'🏭',tag:'ally',text:'При раскрытии: +2 силы за каждую твою другую карту здесь.',onReveal:c=>buff(c,2*others(c).length)},
 // ---- Астромантка: адаптация, манипуляция + темп ----
-{id:'a1',f:'ast',name:'Звёздная пыль',cost:1,power:2,icon:'✨',text:'Классовая карта. При раскрытии: можешь переместить эту карту в другую открытую локацию. Если переместилась, получает +1 силы.'},
+{id:'a1',f:'ast',name:'Звёздная пыль',cost:1,power:2,icon:'✨',text:'Классовая карта. При раскрытии: возьми карту.',onReveal:c=>draw(c.owner)},
 {id:'a2',f:'ast',name:'Чёрный кот',cost:1,power:2,icon:'🐈‍⬛',text:'Темповая карта. При раскрытии: следующая сыгранная тобой карта стоит на 1 меньше.',onReveal:c=>{G.discount[c.owner]=1;}},
 {id:'a3',f:'ast',name:'Гадалка',cost:2,power:2,icon:'🔮',text:'Классовая карта. При раскрытии: следующая карта соперника стоит на 1 энергию больше.',onReveal:c=>{G.surcharge[other(c.owner)]=1;say('⛓ Следующая карта соперника стоит на +1 энергию');}},
 {id:'a4',f:'ast',name:'Комета',cost:2,power:3,icon:'☄️',text:'Темповая карта. При раскрытии: +2 силы, если у тебя есть карта в другой локации.',onReveal:c=>{if(allRev(c.owner).some(t=>t!==c&&t.lane!==c.lane))buff(c,2);}},
@@ -206,12 +206,6 @@ function astroLaneScore(l,owner,mode){
 function openMoveLanes(owner,from){return [0,1,2].filter(l=>G.locRev[l]&&l!==from&&canPlay(owner,l));}
 async function resolveAstroCard(c){
  const o=c.owner,foe=other(o),id=c.def.id;
- if(id==='a1'){
-  const lanes=openMoveLanes(o,c.lane);
-  const to=await chooseAstroLane('Звёздная пыль: выбери, куда переместить карту',lanes,o,l=>astroLaneScore(l,o,'move'),true);
-  if(to!==null&&moveCard(c,to))buff(c,1);
- }
-
  if(id==='a5'&&G.turn<6){
   const lanes=[0,1,2].filter(l=>G.locRev[l]&&canPlay(foe,l,G.turn+1));
   const target=await chooseAstroLane('Лунная сова: выбери локацию для блока',lanes,o,l=>astroLaneScore(l,o,'block'));
@@ -275,7 +269,7 @@ async function endTurn(){
   const tr=G.trap[c.lane];if(tr[other(c.owner)]){tr[other(c.owner)]=false;buff(c,-3);say(`🪤 Капкан! «${c.def.name}» −3`);}
   const L=loc(c.lane);if(L&&!locationRuleDisabled(c.lane)&&L.onPlay)L.onPlay(c);
   if(c.def.onReveal&&c.lane>=0)c.def.onReveal(c);
-  if(c.def.f==='ast'&&['a1','a3','a5','a7','a9','a10','a12'].includes(c.def.id))await resolveAstroCard(c);
+  if(c.def.f==='ast'&&['a3','a5','a7','a9','a10','a12'].includes(c.def.id))await resolveAstroCard(c);
   render();await sleep(650);
  }
  let any=false;
