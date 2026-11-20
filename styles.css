@@ -36,6 +36,7 @@ body{touch-action:manipulation;user-select:none;-webkit-user-select:none}
 .pw{bottom:2px;right:2px;background:#f3f0ff;color:#1b1530}
 .pw.up{background:var(--good)}.pw.dn{background:var(--bad);color:#fff}
 .cost.cheap{background:var(--good);color:#0b2a14}
+.cost.taxed{background:#b91c1c;color:#fff}
 .fl{position:absolute;top:-4px;left:50%;font-weight:900;font-size:15px;pointer-events:none;animation:fl .9s forwards;text-shadow:0 1px 3px #000}
 .fl.up{color:var(--good)}.fl.dn{color:var(--bad)}
 @keyframes fl{0%{opacity:0;transform:translate(-50%,6px)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-16px)}}

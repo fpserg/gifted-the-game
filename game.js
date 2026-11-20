@@ -35,12 +35,12 @@ const CARDS=[
 // ---- Астромантка: адаптация, манипуляция + темп ----
 {id:'a1',f:'ast',name:'Звёздная пыль',cost:1,power:1,icon:'✨',text:'Классовая карта. При раскрытии: можешь переместить эту карту в другую открытую локацию.'},
 {id:'a2',f:'ast',name:'Чёрный кот',cost:1,power:2,icon:'🐈‍⬛',text:'Темповая карта. При раскрытии: следующая сыгранная тобой карта стоит на 1 меньше.',onReveal:c=>{G.discount[c.owner]=1;}},
-{id:'a3',f:'ast',name:'Гадалка',cost:2,power:2,icon:'🔮',text:'Классовая карта. При раскрытии: перемести одну свою другую раскрытую карту в другую открытую локацию.'},
+{id:'a3',f:'ast',name:'Гадалка',cost:2,power:2,icon:'🔮',text:'Классовая карта. При раскрытии: следующая карта соперника стоит на 1 энергию больше.',onReveal:c=>{G.surcharge[other(c.owner)]=1;say('⛓ Следующая карта соперника стоит на +1 энергию');}},
 {id:'a4',f:'ast',name:'Комета',cost:2,power:3,icon:'☄️',text:'Темповая карта. При раскрытии: +2 силы, если у тебя есть карта в другой локации.',onReveal:c=>{if(allRev(c.owner).some(t=>t!==c&&t.lane!==c.lane))buff(c,2);}},
 {id:'a5',f:'ast',name:'Лунная сова',cost:3,power:2,icon:'🦉',text:'Классовая карта. Если это не финальный ход, выбери открытую локацию: соперник не сможет выкладывать туда карты на следующем ходу.'},
 {id:'a6',f:'ast',name:'Астролябия',cost:3,power:3,icon:'🧭',text:'Темповая карта. В конце каждого хода: +1 силы себе.',endTurn:c=>buff(c,1)},
 {id:'a7',f:'ast',name:'Галактика',cost:4,power:3,icon:'🌌',text:'Классовая карта. Если это не финальный ход, выбери локацию: её правило не действует на следующем ходу.'},
-{id:'a8',f:'ast',name:'Звездопад',cost:4,power:5,icon:'🌠',text:'Темповая карта. Без эффекта.'},
+{id:'a8',f:'ast',name:'Звездопад',cost:4,power:6,icon:'🌠',text:'Темповая карта. Без эффекта.'},
 {id:'a9',f:'ast',name:'Колесо судьбы',cost:5,power:5,icon:'🎡',text:'Темповая карта. При раскрытии: +2 силы, если ты проигрываешь эту локацию.',onReveal:c=>{if(laneTotal(c.lane,c.owner)<laneTotal(c.lane,other(c.owner)))buff(c,2);}},
 {id:'a10',f:'ast',name:'Астромантка',cost:5,power:4,icon:'🧙‍♀️',hero:1,text:'Классовая карта. При раскрытии: выбери одну из трёх верхних карт своей колоды. Затем посмотри руку соперника, сбрось выбранную карту; соперник добирает случайную.',},
 {id:'a11',f:'ast',name:'Туманность',cost:6,power:10,icon:'🌫️',text:'Темповая карта. Без эффекта.'},
@@ -75,14 +75,14 @@ const LOCS=[
 
 /* ================= СОСТОЯНИЕ ================= */
 let G=null,UID=1,FAST=false;
-function inst(def,owner){return{uid:UID++,def,owner,lane:-1,buff:0,revealed:false,pending:false,paid:0,usedDisc:false,flash:null,revAt:0};}
+function inst(def,owner){return{uid:UID++,def,owner,lane:-1,buff:0,revealed:false,pending:false,paid:0,usedDisc:false,usedSurcharge:false,flash:null,revAt:0};}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
 function newGame(pf){
  const ef=rndOf(Object.keys(FACTIONS).filter(f=>f!==pf));
  const locs=shuffle([...LOCS]).slice(0,3);
  G={turn:0,fac:{p:pf,e:ef},deck:{p:[],e:[]},discard:{p:[],e:[]},hand:{p:[],e:[]},board:[[],[],[]],locs,locRev:[false,false,false],
-  spent:{p:0,e:0},discount:{p:0,e:0},blockedUntil:{p:[0,0,0],e:[0,0,0]},locDisabledUntil:[0,0,0],trap:[{p:false,e:false},{p:false,e:false},{p:false,e:false}],phase:'plan',sel:null,info:null,busy:false};
+  spent:{p:0,e:0},discount:{p:0,e:0},surcharge:{p:0,e:0},blockedUntil:{p:[0,0,0],e:[0,0,0]},locDisabledUntil:[0,0,0],trap:[{p:false,e:false},{p:false,e:false},{p:false,e:false}],phase:'plan',sel:null,info:null,busy:false};
  for(const o of ['p','e']){G.deck[o]=shuffle(CARDS.filter(c=>c.f===G.fac[o]).map(d=>inst(d,o)));for(let i=0;i<3;i++)draw(o);}
  startTurn();
 }
@@ -108,17 +108,17 @@ const now=()=>typeof performance!=='undefined'?performance.now():Date.now();
 let logLines=[];
 function say(t){logLines.push(t);if(logLines.length>2)logLines.shift();}
 
-function effCost(o,c){return Math.max(0,c.def.cost-(G.discount[o]?1:0));}
+function effCost(o,c){return Math.max(0,c.def.cost-(G.discount[o]?1:0)+(G.surcharge[o]||0));}
 function capOf(l,turn=G.turn){const L=loc(l);return L&&!locationRuleDisabled(l,turn)&&L.cap?L.cap:4;}
 function canPlay(o,l,turn=G.turn){if(G.blockedUntil[o][l]===turn)return false;const L=loc(l);if(L&&!locationRuleDisabled(l,turn)&&L.canPlay&&!L.canPlay(turn))return false;
  return G.board[l].filter(c=>c.owner===o).length<capOf(l,turn);}
 function moveCard(c,l){if(!c||c.lane<0||c.lane===l||!canPlay(c.owner,l))return false;const from=G.board[c.lane],i=from.indexOf(c);if(i<0)return false;from.splice(i,1);G.board[l].push(c);c.lane=l;say(`↔️ «${c.def.name}» перемещена в ${loc(l).name}`);return true;}
 function place(o,c,l){
- const cost=effCost(o,c);c.paid=cost;c.usedDisc=!!G.discount[o]&&c.def.cost>0;if(c.usedDisc)G.discount[o]=0;
+ const cost=effCost(o,c);c.paid=cost;c.usedDisc=!!G.discount[o]&&c.def.cost>0;c.usedSurcharge=(G.surcharge[o]||0)>0;if(c.usedDisc)G.discount[o]=0;if(c.usedSurcharge)G.surcharge[o]=0;
  G.spent[o]+=cost;G.hand[o].splice(G.hand[o].indexOf(c),1);c.lane=l;c.pending=true;G.board[l].push(c);
 }
 function unplace(c){const o=c.owner;G.board[c.lane].splice(G.board[c.lane].indexOf(c),1);c.lane=-1;c.pending=false;
- G.spent[o]-=c.paid;if(c.usedDisc){G.discount[o]=1;c.usedDisc=false;}G.hand[o].push(c);}
+ G.spent[o]-=c.paid;if(c.usedDisc){G.discount[o]=1;c.usedDisc=false;}if(c.usedSurcharge){G.surcharge[o]=1;c.usedSurcharge=false;}G.hand[o].push(c);}
 
 function startTurn(){
  G.turn++;G.spent={p:0,e:0};
@@ -211,13 +211,7 @@ async function resolveAstroCard(c){
   const to=await chooseAstroLane('Звёздная пыль: выбери, куда переместить карту',lanes,o,l=>astroLaneScore(l,o,'move'),true);
   if(to!==null)moveCard(c,to);
  }
- if(id==='a3'){
-  const cards=allRev(o).filter(t=>t!==c);
-  if(cards.length){
-   const source=await chooseAstroCard('Гадалка: выбери свою карту для перемещения',cards,o,t=>laneTotal(t.lane,o)-laneTotal(t.lane,foe));
-   if(source){const lanes=openMoveLanes(o,source.lane);const to=await chooseAstroLane('Гадалка: выбери новую локацию',lanes,o,l=>astroLaneScore(l,o,'move'));if(to!==null)moveCard(source,to);}
-  }
- }
+
  if(id==='a5'&&G.turn<6){
   const lanes=[0,1,2].filter(l=>G.locRev[l]&&canPlay(foe,l,G.turn+1));
   const target=await chooseAstroLane('Лунная сова: выбери локацию для блока',lanes,o,l=>astroLaneScore(l,o,'block'));
@@ -331,11 +325,11 @@ function render(){
  $('board').innerHTML=b;
  $('log').textContent=logLines.join(' · ');
  const left=G.turn-G.spent.p;
- $('energy').textContent=`⚡ ${left}/${G.turn}`;
+ $('energy').textContent=`⚡ ${left}/${G.turn}${G.surcharge.p?' · +1 к следующей карте':''}`;
  $('end').disabled=G.phase!=='plan';
  $('end').textContent=G.phase==='plan'?(G.turn===6?'Финальный ход':'Завершить ход'):'Раскрытие…';
  $('hand').innerHTML=G.hand.p.map(c=>{const ec=effCost('p',c);
-  return `<div role="button" tabindex="0" aria-label="${c.def.name}, энергия ${ec}, сила ${c.def.power}" class="hc f-${c.def.f}${G.sel===c.uid?' sel':''}${ec>left?' dim':''}" data-uid="${c.uid}">${face(c.def)}<span class="cost${ec<c.def.cost?' cheap':''}">${ec}</span><div class="nm">${c.def.name}</div><span class="pw">${c.def.power}</span></div>`;}).join('')||'<div style="color:var(--mut);font-size:12px;padding:30px 6px">Рука пуста</div>';
+  return `<div role="button" tabindex="0" aria-label="${c.def.name}, энергия ${ec}, сила ${c.def.power}" class="hc f-${c.def.f}${G.sel===c.uid?' sel':''}${ec>left?' dim':''}" data-uid="${c.uid}">${face(c.def)}<span class="cost${ec<c.def.cost?' cheap':ec>c.def.cost?' taxed':''}">${ec}</span><div class="nm">${c.def.name}</div><span class="pw">${c.def.power}</span></div>`;}).join('')||'<div style="color:var(--mut);font-size:12px;padding:30px 6px">Рука пуста</div>';
  const ic=G.info;
  $('info').innerHTML=astroChoice?astroChoiceHtml():ic?ic:(G.phase==='plan'?'Выбери карту в руке, затем нажми на локацию. Нажми на свою выложенную карту, чтобы вернуть её в руку. Карты раскрываются в конце хода.':'Карты раскрываются…');
  renderCoach();
