@@ -211,3 +211,60 @@ button:focus-visible,[role=button]:focus-visible{outline:3px solid var(--acc);ou
  #info .astro-inline-option{min-height:64px}
  #info .astro-inline-option small{font-size:9px}
 }
+
+/* GIFTED physical table */
+:root{--bg:#160e09;--panel:#251a12;--panel2:#372619;--txt:#f5e7cd;--mut:#c5b395;--acc:#edbd71}
+html,body{background:#160e09}
+#app{max-width:920px;background:url(assets/ui/table.webp) center/100% 100%;padding:22px 24px 24px;position:relative;gap:5px;box-shadow:0 20px 80px #000}
+.who,#turn{background:#21170ed9;border:1px solid #a2753e55;border-radius:5px}
+.who .muted{font-size:10px}.who b{font-size:12px}
+.reserve{height:64px;position:relative;display:flex;align-items:center;justify-content:center;padding:3px 66px}
+.opponent-fan{display:flex;align-items:center;justify-content:center;height:58px;padding-right:16px}
+.card-back,.table-deck,.mc.back{background:url(assets/ui/card-back.webp) center/100% 100%!important;border:1px solid #b58a49!important;border-radius:5px;box-shadow:0 4px 8px #0009}
+.card-back{display:block;width:35px;height:52px;margin-right:-12px;transform:rotate(calc((var(--i) - (var(--n) - 1)/2)*4deg));transform-origin:50% -40%;flex-shrink:0}
+.table-deck{width:39px;height:58px;position:relative;box-shadow:2px 2px #b8a080,3px 3px #372518,5px 5px #ad9065,7px 7px 9px #000a}
+.reserve>.table-deck{position:absolute;right:12px;top:0}
+.table-deck span{position:absolute;right:-7px;bottom:-5px;background:#251a12;border:1px solid #d2ab63;border-radius:50%;min-width:23px;height:23px;text-align:center;line-height:21px;font-size:12px;font-weight:800}
+.table-deck.empty{background:#24190d88!important;box-shadow:inset 0 0 5px #000}
+#playerDeck{position:absolute;bottom:45px;right:35px;z-index:2}
+#hand{padding-right:65px;min-height:108px}
+.lane{background:#130c0640;border:2px solid transparent;border-radius:7px;gap:5px}
+.lane.can{background:#bf8f3625;border-color:#edbd71}
+.slot{border:none;background:#1a0c0820;box-shadow:inset 0 1px 6px #0003}
+.mc{box-shadow:0 3px 7px #0008}.mc.back:after{content:none}
+.loc{border:1px solid #b28a51;min-height:100px;box-shadow:0 3px 9px #0009;text-shadow:0 1px 3px #000}
+.loc .lt{color:#f4e5c9}.loc .ln{color:#fff0ce}.loc.hidden{background:url(assets/ui/card-back.webp) center/cover}
+.sc{color:#f9e5c3}.sc.win{color:#b8edb2}
+#info{background:#21170ee6;border:1px solid #a2753e55;border-radius:6px}
+#end,.btn{background:linear-gradient(#e2b571,#a87336);color:#241508;border:1px solid #f0cf90;border-radius:6px;box-shadow:0 3px 0 #513318,0 5px 9px #0006}
+.lbtn{background:#332319;border-color:#957044;border-radius:5px}
+#energy{background:radial-gradient(ellipse,#226258,#102c28);color:#c7f8e8;border:1px solid #a88652;border-radius:6px;font-size:12px}
+#ov{background:linear-gradient(#160d07b0,#160d07e8),url(assets/ui/table.webp) center/cover}
+.box{background:#261b14f5;border-color:#a77e44;box-shadow:0 20px 70px #000a}
+.hc{box-shadow:0 4px 9px #000a}
+@media(min-width:700px) and (min-height:601px){
+ #app{padding:30px 44px}.slot,.mc{height:78px}
+ #hand .hc{width:88px;height:120px}#hand{min-height:138px}
+ .reserve{height:75px}.card-back{height:60px;width:40px}
+ #playerDeck{bottom:60px;right:52px}
+}
+@media(max-width:480px){
+ #app{padding:14px 10px 18px}
+ .who{padding:3px 5px;gap:4px}.who .muted{display:none}
+ .reserve{height:58px}.card-back{height:45px;width:30px}
+ .table-deck{width:31px;height:47px}.reserve>.table-deck{right:8px}
+ #playerDeck{right:18px;bottom:43px}
+ .loc{min-height:94px}.loc .lt{font-size:9px}
+ #hand{padding-right:48px}.bar{gap:4px}
+}
+@media(orientation:landscape) and (max-height:600px) and (min-width:560px){
+ #app{max-width:none;padding:12px 20px;grid-template-rows:30px 40px minmax(0,1fr) 78px;grid-template-columns:minmax(0,1fr) 172px;height:100dvh;min-height:0}
+ .bar{grid-row:1}#opponentReserve{grid-column:1;grid-row:2;height:40px}
+ .opponent-fan{height:35px}.card-back{height:32px;width:22px;margin-right:-7px}
+ .table-deck{width:25px;height:37px}.table-deck span{height:18px;min-width:18px;line-height:16px;font-size:10px}
+ #board{grid-row:3}.loc{min-height:0}.slot,.mc{height:100%}
+ #hand{grid-row:4;padding-right:42px}#hand .hc{height:68px;width:50px}
+ #bottom{grid-row:1 / 5;grid-column:2;background:#21170ee6}
+ #playerDeck{bottom:32px;right:205px}
+ #info,#log,#coach{right:26px;width:160px}
+}

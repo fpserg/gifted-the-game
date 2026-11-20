@@ -11,6 +11,12 @@ vm.createContext(context);vm.runInContext(fs.readFileSync('game.js','utf8'),cont
 const run=s=>vm.runInContext(s,context);
 (async()=>{
  assert(el('ovbox').innerHTML.includes('Выбери своего героя'));
+ run("newGame('eng');render()");
+ assert(el('opponentReserve').innerHTML.includes('opponent-fan'));
+ assert(el('opponentReserve').innerHTML.split('class="card-back"').length-1===run('G.hand.e.length'));
+ assert(!el('opponentReserve').innerHTML.includes(run('G.hand.e[0].def.name')));
+ assert(el('playerDeck').innerHTML.includes('Колода: '+run('G.deck.p.length')));
+
  run("pickedHero='eng';startMatch(true);FAST=true;");
  assert(el('coach').innerHTML.includes('ОБУЧЕНИЕ'));run("tutorialEvent('end')");assert(run('tutorialStep')===0);
  run("G.hand.p=[inst(CARDS.find(c=>c.id==='e1'),'p')];G.spent.p=0;render();");
@@ -42,12 +48,12 @@ const run=s=>vm.runInContext(s,context);
  const allyEl={dataset:{uid:String(allyUid)}},allyLane={dataset:{l:'0'}};
  el('board').handlers.click({target:{closest:s=>s==='.mc'?allyEl:s==='.lane'?allyLane:null}});
  await new Promise(resolve=>setTimeout(resolve,0));
- assert(el('info').innerHTML.includes('другой локации'),'Second in-context card choice did not appear');
- assert(el('board').innerHTML.includes('astro-card-target'),'Valid second card was not highlighted');
+ assert(el('info').innerHTML.includes('новую локацию'),'Second in-context card choice did not appear');
+ assert(el('board').innerHTML.includes('astro-lane-target'),'Valid second card was not highlighted');
  const targetEl={dataset:{uid:String(targetUid)}};
- el('board').handlers.click({target:{closest:s=>s==='.mc'?targetEl:s==='.lane'?null:null}});
+ el('board').handlers.click({target:{closest:s=>s==='.mc'?targetEl:s==='.lane'?{dataset:{l:'2'}}:null}});
  await moving;
- assert(run("G.board[2].some(c=>c.uid==="+targetUid+"&&c.buff===2)"),'Supernova transfer did not apply after the inline choice');
+ assert(run("G.board[2].some(c=>c.uid==="+allyUid+"&&c.lane===2)"),'Supernova movement did not apply after the inline choice');
  assert(el('ov').classes.has('hide'),'Astro effects should keep the full-screen overlay closed');
  const deckUids=run("G.deck.p.slice(0,3).map(c=>c.uid)");
  const deckPick=run("chooseAstroCard('Тест выбора из колоды',G.deck.p.slice(0,3),'p')");
@@ -72,3 +78,4 @@ const run=s=>vm.runInContext(s,context);
  console.log('PASS: Inline board/deck choices, Starfall/Gadalka effects, and next-card tax cost all work.');
 
 })().catch(e=>{console.error(e);process.exitCode=1});
+
