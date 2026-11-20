@@ -297,3 +297,15 @@ html,body{background:#160e09}
 .splash-poster-art{display:block;width:100%;height:auto;max-height:min(82dvh,920px);object-fit:contain;margin:auto}
 .splash-poster .splash-play{position:absolute;left:50%;bottom:clamp(14px,4vh,38px);transform:translateX(-50%);line-height:1.2;z-index:1}
 @media(orientation:landscape) and (max-height:600px){.box.splash-box{width:auto;height:94dvh;max-width:initial}.splash-poster{height:100%;display:flex;justify-content:center}.splash-poster-art{height:100%;width:auto;max-height:100%;max-width:100%;object-fit:contain}.splash-poster .splash-play{bottom:12px}}
+
+/* Full-viewport poster with a physical medallion control. */
+#ov.splash-overlay{padding:0;overflow:hidden;background:#100c10;align-items:stretch}
+#ov.splash-overlay .splash-box{width:100%;height:100%;max-width:none;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;background:none}
+#ov.splash-overlay .splash-poster{width:100%;height:100%;display:block;isolation:isolate}
+.splash-overlay .splash-poster::before{content:"";position:absolute;inset:-20px;background:url(assets/ui/splash-poster-v2.webp) center/cover;filter:blur(16px) brightness(.45);z-index:-1}
+#ov.splash-overlay .splash-poster-art{width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;object-position:center top}
+#ov.splash-overlay .splash-play{position:absolute;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);width:clamp(100px,19vh,155px);min-width:0;height:auto;aspect-ratio:1;margin:0;padding:0;border:0;border-radius:50%;background:none;box-shadow:none;cursor:pointer;filter:drop-shadow(0 5px 9px #000c);touch-action:manipulation}
+.splash-play img{display:block;width:100%;height:auto}
+#ov.splash-overlay .splash-play:active{transform:translateX(-50%) scale(.95)}
+#ov.splash-overlay .splash-play:focus-visible{outline:3px solid #fff3b7;outline-offset:4px}
+@media(orientation:landscape){#ov.splash-overlay .splash-poster-art{object-fit:contain}#ov.splash-overlay .splash-play{left:auto;right:max(7vw,env(safe-area-inset-right));bottom:12%;transform:none;width:clamp(90px,26vh,155px)}#ov.splash-overlay .splash-play:active{transform:scale(.95)}}
