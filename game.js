@@ -380,7 +380,7 @@ if(HAS_DOM){
  $('hand').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('.hc')){e.preventDefault();e.target.closest('.hc').click();}});
  $('libBtn').onclick=()=>library(G?G.fac.p:'eng','game');
 }
-function openOv(h){$('ovbox').classList.remove('hero-box','splash-box');$('ovbox').innerHTML=h;$('ov').classList.remove('hide');}
+function openOv(h){$('ov').classList.remove('splash-overlay');$('ovbox').classList.remove('hero-box','splash-box');$('ovbox').innerHTML=h;$('ov').classList.remove('hide');}
 function closeOv(){$('ov').classList.add('hide');}
 let libFrom='game';
 function library(tab,from){if(from)libFrom=from;
@@ -428,10 +428,11 @@ function renderCoach(){
 function startMatch(training){closeOv();logLines=[];tutorialActive=training;tutorialStep=0;newGame(pickedHero);}
 function splashScreen(){
  openOv(`<section class="splash splash-poster" aria-label="Постер Game of Gifts">
- <img class="splash-poster-art" src="assets/ui/game-of-gifts-poster.webp" alt="Инженер заносит карту, Астромантка сидит за столом с колодой, Хранитель закрывает лицо веером карт">
- <button class="btn splash-play" id="splashPlay">Играть</button>
+ <img class="splash-poster-art" src="assets/ui/splash-poster-v2.webp" alt="Инженер заносит карту, Астромантка сидит за столом с колодой, Хранитель закрывает лицо веером карт">
+ <button class="splash-play" id="splashPlay" aria-label="Играть"><img src="assets/ui/play-medallion.webp" alt="ИГРАТЬ" width="320" height="320"></button>
  </section>`);
  $('ovbox').classList.add('splash-box');
+ $('ov').classList.add('splash-overlay');
  $('splashPlay').onclick=heroPick;
 }
 function heroPick(){
