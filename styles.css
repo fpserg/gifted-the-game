@@ -309,3 +309,12 @@ html,body{background:#160e09}
 #ov.splash-overlay .splash-play:active{transform:translateX(-50%) scale(.95)}
 #ov.splash-overlay .splash-play:focus-visible{outline:3px solid #fff3b7;outline-offset:4px}
 @media(orientation:landscape){#ov.splash-overlay .splash-poster-art{object-fit:contain}#ov.splash-overlay .splash-play{left:auto;right:max(7vw,env(safe-area-inset-right));bottom:12%;transform:none;width:clamp(90px,26vh,155px)}#ov.splash-overlay .splash-play:active{transform:scale(.95)}}
+
+
+/* Keep the installed iPhone app clear of the status bar, sensor housing and home indicator. */
+@media (display-mode: standalone) {
+  #app { padding-top: max(54px, calc(env(safe-area-inset-top) + 10px)); padding-bottom: max(30px, calc(env(safe-area-inset-bottom) + 12px)); padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+  #ov.splash-overlay { padding-top: max(48px, env(safe-area-inset-top)); padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+  #ov.splash-overlay .splash-poster-art { object-position: center 54%; }
+  #ov.splash-overlay .splash-play { bottom: max(24px, calc(env(safe-area-inset-bottom) + 12px)); }
+}

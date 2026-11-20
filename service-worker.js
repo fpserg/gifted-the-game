@@ -1,9 +1,9 @@
-const CACHE_NAME = 'game-of-gifts-v1';
+const CACHE_NAME = 'game-of-gifts-v2';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=fullscreen2',
-  './game.js?v=fullscreen2',
+  './styles.css?v=pwa-safearea1',
+  './game.js?v=pwa-safearea1',
   './manifest.json',
   './assets/ui/splash-poster-v2.webp',
   './assets/ui/play-medallion.webp',
