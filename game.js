@@ -427,13 +427,9 @@ function renderCoach(){
 }
 function startMatch(training){closeOv();logLines=[];tutorialActive=training;tutorialStep=0;newGame(pickedHero);}
 function splashScreen(){
- openOv(`<section class="splash" aria-labelledby="splashTitle">
- <header><p class="splash-kicker">КАРТОЧНАЯ ИГРА В МИРЕ GIFTED</p><h1 id="splashTitle">Game <span>of</span> Gifts</h1><p class="splash-tagline">Три героя. Шесть ходов. Твой ход меняет всё.</p></header>
- <div class="splash-cast">${Object.entries(FACTIONS).map(([k,F])=>{
- const ids=k==='eng'?['e2','e6','e12']:k==='ast'?['a2','a8','a12']:['k2','k6','k12'];
- return `<figure class="splash-hero" style="--glow:${F.color}"><img class="splash-portrait" src="${IMG[AV[k]]}" alt="${F.name}"><div class="splash-deck" aria-label="Карты колоды: ${F.name}"><i class="splash-back"></i>${ids.map((id,i)=>`<img src="${IMG[id]}" alt="${CARDS.find(c=>c.id===id).name}" style="--i:${i}">`).join('')}</div><figcaption>${F.name}</figcaption></figure>`;
- }).join('')}</div>
- <footer><button class="btn splash-play" id="splashPlay">Играть</button><p>Выбери героя и завладей двумя из трёх локаций</p></footer>
+ openOv(`<section class="splash splash-poster" aria-label="Постер Game of Gifts">
+ <img class="splash-poster-art" src="assets/ui/game-of-gifts-poster.webp" alt="Инженер заносит карту, Астромантка сидит за столом с колодой, Хранитель закрывает лицо веером карт">
+ <button class="btn splash-play" id="splashPlay">Играть</button>
  </section>`);
  $('ovbox').classList.add('splash-box');
  $('splashPlay').onclick=heroPick;

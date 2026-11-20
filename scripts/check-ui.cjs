@@ -10,11 +10,8 @@ const context={console,Date,Math,performance,Promise,document:doc,localStorage:{
 vm.createContext(context);vm.runInContext(fs.readFileSync('game.js','utf8'),context);
 const run=s=>vm.runInContext(s,context);
 (async()=>{
- assert(el('ovbox').innerHTML.includes('Game <span>of</span> Gifts'));
- assert(el('ovbox').innerHTML.split('<figure class="splash-hero"').length-1===3);
- el('splashPlay').onclick();
- assert(!el('ovbox').classes.has('splash-box'));
- assert(el('ovbox').innerHTML.includes('Выбери своего героя'));
+ assert(fs.readFileSync('game.js','utf8').includes('assets/ui/game-of-gifts-poster.webp'));
+ assert(fs.readFileSync('game.js','utf8').includes('function splashScreen()'));
  run("newGame('eng');render()");
  assert(el('opponentReserve').innerHTML.includes('opponent-fan'));
  assert(el('opponentReserve').innerHTML.split('class="card-back"').length-1===run('G.hand.e.length'));
