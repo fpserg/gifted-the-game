@@ -168,13 +168,13 @@ function astroChoiceHtml(){
  const prompt=c.kind==='board-card'?'Нажми на подсвеченную карту на столе.':c.kind==='lane'?'Нажми на одну из подсвеченных локаций.':'Выбери карту из списка.';
  return `<section class="astro-inline"><header><b>${title}</b><span>${prompt}</span></header>${options}${c.optional?'<button class="astro-skip" type="button">Оставить как есть</button>':''}</section>`;
 }
-function chooseAstroCard(title,cards,owner,scoreFn){
+function chooseAstroCard(title,cards,owner,scoreFn,optional=false){
  if(!cards.length)return Promise.resolve(null);
  const score=scoreFn||((c)=>c.def.power+c.def.cost*.75);
  if(owner!=='p'||!HAS_DOM)return Promise.resolve(cards.reduce((best,c)=>!best||score(c)>score(best)?c:best,null));
  const boardCards=cards.every(c=>c.revealed&&c.lane>=0);
  return new Promise(resolve=>{
-  astroChoice={kind:boardCards?'board-card':'list-card',title,cards,resolve,optional:false};
+  astroChoice={kind:boardCards?'board-card':'list-card',title,cards,resolve,optional};
   G.info=null;render();
  });
 }
@@ -236,16 +236,16 @@ async function resolveAstroCard(c){
   }
  }
  if(id==='a12'){
-  const sources=allRev(o).filter(t=>t!==c);
+  const sources=allRev(o).filter(t=>t!==c&&openMoveLanes(o,t.lane).length);
   if(sources.length){
    const source=await chooseAstroCard('Сверхновая: выбери свою карту для перемещения',sources,o,t=>{
     const lanes=openMoveLanes(o,t.lane);
     const best=lanes.reduce((score,l)=>Math.max(score,astroLaneScore(l,o,'move')),0);
     return power(t)+best*.15;
-   });
+   },true);
    if(source){
     const lanes=openMoveLanes(o,source.lane);
-    const target=await chooseAstroLane('Сверхновая: выбери новую локацию',lanes,o,l=>astroLaneScore(l,o,'move'));
+    const target=await chooseAstroLane('Сверхновая: выбери новую локацию',lanes,o,l=>astroLaneScore(l,o,'move'),true);
     if(target!==null)moveCard(source,target);
    }
   }
