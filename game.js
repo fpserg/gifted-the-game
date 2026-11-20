@@ -380,7 +380,7 @@ if(HAS_DOM){
  $('hand').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('.hc')){e.preventDefault();e.target.closest('.hc').click();}});
  $('libBtn').onclick=()=>library(G?G.fac.p:'eng','game');
 }
-function openOv(h){$('ovbox').classList.remove('hero-box');$('ovbox').innerHTML=h;$('ov').classList.remove('hide');}
+function openOv(h){$('ovbox').classList.remove('hero-box','splash-box');$('ovbox').innerHTML=h;$('ov').classList.remove('hide');}
 function closeOv(){$('ov').classList.add('hide');}
 let libFrom='game';
 function library(tab,from){if(from)libFrom=from;
@@ -426,9 +426,21 @@ function renderCoach(){
  el.querySelector('button').onclick=finishTutorial;
 }
 function startMatch(training){closeOv();logLines=[];tutorialActive=training;tutorialStep=0;newGame(pickedHero);}
+function splashScreen(){
+ openOv(`<section class="splash" aria-labelledby="splashTitle">
+ <header><p class="splash-kicker">КАРТОЧНАЯ ИГРА В МИРЕ GIFTED</p><h1 id="splashTitle">Game <span>of</span> Gifts</h1><p class="splash-tagline">Три героя. Шесть ходов. Твой ход меняет всё.</p></header>
+ <div class="splash-cast">${Object.entries(FACTIONS).map(([k,F])=>{
+ const ids=k==='eng'?['e2','e6','e12']:k==='ast'?['a2','a8','a12']:['k2','k6','k12'];
+ return `<figure class="splash-hero" style="--glow:${F.color}"><img class="splash-portrait" src="${IMG[AV[k]]}" alt="${F.name}"><div class="splash-deck" aria-label="Карты колоды: ${F.name}"><i class="splash-back"></i>${ids.map((id,i)=>`<img src="${IMG[id]}" alt="${CARDS.find(c=>c.id===id).name}" style="--i:${i}">`).join('')}</div><figcaption>${F.name}</figcaption></figure>`;
+ }).join('')}</div>
+ <footer><button class="btn splash-play" id="splashPlay">Играть</button><p>Выбери героя и завладей двумя из трёх локаций</p></footer>
+ </section>`);
+ $('ovbox').classList.add('splash-box');
+ $('splashPlay').onclick=heroPick;
+}
 function heroPick(){
  const seen=tutorialSeen();
- openOv(`<div class="pick-heading"><small>GIFTED · БИТВА КУПОЛОВ</small><h2>Выбери своего героя</h2><p>Три стиля игры. Шесть ходов. Одна победа.</p></div>
+ openOv(`<div class="pick-heading"><small>GAME OF GIFTS</small><h2>Выбери своего героя</h2><p>Три стиля игры. Шесть ходов. Одна победа.</p></div>
  <div class="heroes">${Object.entries(FACTIONS).map(([k,F])=>`<button class="hero hero-card" data-f="${k}" aria-pressed="${k===pickedHero}" style="--hero-color:${F.color}"><img src="${IMG[AV[k]]}" alt=""><div class="hero-copy"><small>${k==='eng'?'СОЗИДАНИЕ':k==='ast'?'ЗВЁЗДНАЯ МАГИЯ':'ТЕНЕВОЙ КОНТРОЛЬ'}</small><b>${F.name}</b><span>${F.desc}</span><em>${k===pickedHero?'Выбран':'Выбрать'}</em></div></button>`).join('')}</div>
  <div class="pick-actions"><button class="btn" id="startMatch">В бой · ${FACTIONS[pickedHero].name}</button><button class="btn sec" id="training">${seen?'Повторить обучение':'Начать с обучением'}</button><button class="btn sec" id="pickLib">Все карты</button></div><p class="pick-rule">Выиграй большинство локаций. При равенстве решает общая сила.</p>`);
  $('ovbox').classList.add('hero-box');
@@ -476,4 +488,4 @@ function installGestures(){
  });
  window.addEventListener('pointercancel',clear);window.addEventListener('blur',clear);
 }
-if(HAS_DOM){installGestures();heroPick();}
+if(HAS_DOM){installGestures();splashScreen();}
