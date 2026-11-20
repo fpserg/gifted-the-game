@@ -4,19 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>GIFTED: Битва куполов — прототип</title>
-<link rel="stylesheet" href="styles.css?v=5">
+<link rel="stylesheet" href="styles.css?v=table1">
 </head>
 <body>
 <div id="app">
-  <div class="bar"><div class="who" id="eWho"></div><div style="display:flex;gap:6px;align-items:center"><button class="lbtn" id="libBtn">📖 Карты</button><button class="lbtn" id="helpBtn" aria-label="Обучение">?</button><div id="turn"></div></div></div>
+  <div class="bar"><div class="who" id="eWho"></div><div style="display:flex;gap:6px;align-items:center"><button class="lbtn" id="libBtn">Карты</button><button class="lbtn" id="helpBtn" aria-label="Обучение">?</button><div id="turn"></div></div></div>
+  <div id="opponentReserve" class="reserve"></div>
   <div id="board"></div>
   <div id="log" aria-live="polite"></div>
   <div id="info" aria-live="polite"></div>
   <aside id="coach" class="hide" aria-live="polite"></aside>
   <div id="bottom"><div class="who" id="pWho"></div><div id="energy"></div><button id="end">Завершить ход</button></div>
+  <div id="playerDeck"></div>
   <div id="hand"></div>
 </div>
 <div id="ov"><div class="box" id="ovbox"></div></div>
-<script src="game.js?v=5" defer></script>
+<script src="game.js?v=table1" defer></script>
 </body>
 </html>

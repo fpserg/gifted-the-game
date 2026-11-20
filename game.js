@@ -314,9 +314,18 @@ function miniCard(c){
 function slots(l,o){const cs=G.board[l].filter(c=>c.owner===o);const cap=capOf(l);let h='';
  for(let i=0;i<4;i++){if(cs[i])h+=miniCard(cs[i]);else h+=i<cap?'<div class="slot"></div>':'<div class="slot" style="border:none"></div>';}
  return `<div class="slots">${h}</div>`;}
+function tableDeck(owner){
+ const n=G.deck[owner].length;
+ return '<div class="table-deck'+(n?'':' empty')+'" role="img" aria-label="Колода: '+n+' карт"><span>'+n+'</span></div>';
+}
+function tableReserves(){
+ return '<div class="opponent-fan" role="img" aria-label="Рука соперника: '+G.hand.e.length+' карт">'+G.hand.e.map((_,i)=>'<i class="card-back" style="--i:'+i+';--n:'+G.hand.e.length+'"></i>').join('')+'</div>'+tableDeck('e');
+}
 function render(){
  if(!HAS_DOM||!G)return;
  const PF=FACTIONS[G.fac.p],EF=FACTIONS[G.fac.e];
+ $('opponentReserve').innerHTML=tableReserves();
+ $('playerDeck').innerHTML=tableDeck('p');
  $('eWho').innerHTML=`${avImg(G.fac.e)}<b>${EF.name}</b><span class="muted">рука ${G.hand.e.length} · колода ${G.deck.e.length}</span>`;
  $('pWho').innerHTML=`${avImg(G.fac.p)}<b>${PF.name}</b><span class="muted">колода ${G.deck.p.length}</span>`;
  $('turn').textContent=`Ход ${G.turn}/6`;
@@ -328,13 +337,13 @@ function render(){
   const can=sel&&G.phase==='plan'&&canPlay('p',l)&&effCost('p',sel)<=G.turn-G.spent.p;
   const status=blocked?'⛔ Ты не можешь играть здесь в этом ходу.':foeBlocked?'⛔ Соперник не может играть здесь в этом ходу.':suppressed?'⏸ Правило отключено на этот ход.':'';
   b+=`<div class="lane${can?' can':''}${blocked?' locked':''}${astroLaneTarget?' astro-lane-target':''}" data-l="${l}">${slots(l,'e')}
-   <div class="loc${L?'':' hidden'}${blocked?' blocked':''}${suppressed?' suppressed':''}" data-l="${l}" style="${L?`background:linear-gradient(#2a2448b8,#1b1730f0),url(${IMG[LOCIMG[L.id]]}) center/cover`:''}"><div class="sc${wp==='e'?' win':''}">${laneTotal(l,'e')}</div>
-   <div class="ln">${L?L.icon+' '+L.name:'❔ Скрыта'}</div><div class="lt">${L?L.text+(status?'<br>'+status:''):'Откроется на ходу '+(l+1)}</div>
+   <div class="loc${L?'':' hidden'}${blocked?' blocked':''}${suppressed?' suppressed':''}" data-l="${l}" style="${L?`background:linear-gradient(#160f0950,#160f09bb),url(${IMG[LOCIMG[L.id]]}) center/cover`:''}"><div class="sc${wp==='e'?' win':''}">${laneTotal(l,'e')}</div>
+   <div class="ln">${L?L.name:'Неизведанная земля'}</div><div class="lt">${L?L.text+(status?'<br>'+status:''):'Откроется на ходу '+(l+1)}</div>
    <div class="sc${wp==='p'?' win':''}">${laneTotal(l,'p')}</div></div>${slots(l,'p')}</div>`;}
  $('board').innerHTML=b;
  $('log').textContent=logLines.join(' · ');
  const left=G.turn-G.spent.p;
- $('energy').textContent=`⚡ ${left}/${G.turn}${G.surcharge.p?' · +1 к следующей карте':''}`;
+ $('energy').textContent=`Энергия ${left}/${G.turn}${G.surcharge.p?' · +1 к следующей карте':''}`;
  $('end').disabled=G.phase!=='plan';
  $('end').textContent=G.phase==='plan'?(G.turn===6?'Финальный ход':'Завершить ход'):'Раскрытие…';
  $('hand').innerHTML=G.hand.p.map(c=>{const ec=effCost('p',c);
