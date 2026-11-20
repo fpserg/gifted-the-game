@@ -33,18 +33,18 @@ const CARDS=[
 {id:'e11',f:'eng',name:'Дерево-остров',cost:6,power:9,icon:'🌳',art:1,text:'Артефакт.'},
 {id:'e12',f:'eng',name:'Великая машина',cost:6,power:5,icon:'🏭',tag:'ally',text:'При раскрытии: +2 силы за каждую твою другую карту здесь.',onReveal:c=>buff(c,2*others(c).length)},
 // ---- Астромантка: адаптация, манипуляция + темп ----
-{id:'a1',f:'ast',name:'Звёздная пыль',cost:1,power:1,icon:'✨',text:'Классовая карта. При раскрытии: можешь переместить эту карту в другую открытую локацию.'},
+{id:'a1',f:'ast',name:'Звёздная пыль',cost:1,power:2,icon:'✨',text:'Классовая карта. При раскрытии: можешь переместить эту карту в другую открытую локацию. Если переместилась, получает +1 силы.'},
 {id:'a2',f:'ast',name:'Чёрный кот',cost:1,power:2,icon:'🐈‍⬛',text:'Темповая карта. При раскрытии: следующая сыгранная тобой карта стоит на 1 меньше.',onReveal:c=>{G.discount[c.owner]=1;}},
 {id:'a3',f:'ast',name:'Гадалка',cost:2,power:2,icon:'🔮',text:'Классовая карта. При раскрытии: следующая карта соперника стоит на 1 энергию больше.',onReveal:c=>{G.surcharge[other(c.owner)]=1;say('⛓ Следующая карта соперника стоит на +1 энергию');}},
 {id:'a4',f:'ast',name:'Комета',cost:2,power:3,icon:'☄️',text:'Темповая карта. При раскрытии: +2 силы, если у тебя есть карта в другой локации.',onReveal:c=>{if(allRev(c.owner).some(t=>t!==c&&t.lane!==c.lane))buff(c,2);}},
 {id:'a5',f:'ast',name:'Лунная сова',cost:3,power:2,icon:'🦉',text:'Классовая карта. Если это не финальный ход, выбери открытую локацию: соперник не сможет выкладывать туда карты на следующем ходу.'},
 {id:'a6',f:'ast',name:'Астролябия',cost:3,power:3,icon:'🧭',text:'Темповая карта. В конце каждого хода: +1 силы себе.',endTurn:c=>buff(c,1)},
 {id:'a7',f:'ast',name:'Галактика',cost:4,power:3,icon:'🌌',text:'Классовая карта. Если это не финальный ход, выбери локацию: её правило не действует на следующем ходу.'},
-{id:'a8',f:'ast',name:'Звездопад',cost:4,power:6,icon:'🌠',text:'Темповая карта. Без эффекта.'},
-{id:'a9',f:'ast',name:'Колесо судьбы',cost:5,power:5,icon:'🎡',text:'Темповая карта. При раскрытии: +2 силы, если ты проигрываешь эту локацию.',onReveal:c=>{if(laneTotal(c.lane,c.owner)<laneTotal(c.lane,other(c.owner)))buff(c,2);}},
+{id:'a8',f:'ast',name:'Звездопад',cost:4,power:6,icon:'🌠',text:'Темповая карта. При раскрытии: +2 силы, если ты проигрываешь эту локацию.',onReveal:c=>{if(laneTotal(c.lane,c.owner)<laneTotal(c.lane,other(c.owner)))buff(c,2);}},
+{id:'a9',f:'ast',name:'Колесо судьбы',cost:5,power:5,icon:'🎡',text:'Классовая карта. При раскрытии: +2 силы одной своей раскрытой карте в каждой другой локации.'},
 {id:'a10',f:'ast',name:'Астромантка',cost:5,power:4,icon:'🧙‍♀️',hero:1,text:'Классовая карта. При раскрытии: выбери одну из трёх верхних карт своей колоды. Затем посмотри руку соперника, сбрось выбранную карту; соперник добирает случайную.',},
 {id:'a11',f:'ast',name:'Туманность',cost:6,power:10,icon:'🌫️',text:'Темповая карта. Без эффекта.'},
-{id:'a12',f:'ast',name:'Сверхновая',cost:6,power:4,icon:'💥',text:'Классовая карта. При раскрытии: перенеси до 3 бонусной силы с одной своей раскрытой карты на другую свою карту в другой локации.'},
+{id:'a12',f:'ast',name:'Сверхновая',cost:6,power:4,icon:'💥',text:'Классовая карта. При раскрытии: можешь переместить одну свою другую раскрытую карту в другую открытую локацию.'},
 // ---- Хранитель ----
 {id:'k1',f:'kee',name:'Карманник',cost:1,power:2,icon:'🤏',tag:'foe',text:'При раскрытии: −1 силы случайной вражеской карте здесь.',onReveal:c=>{const t=rndOf(foes(c));if(t)buff(t,-1);}},
 {id:'k2',f:'kee',name:'Тень',cost:1,power:1,icon:'👤',tag:'foe',text:'В конце хода: +1 силы, если здесь у врага больше карт, чем у тебя.',endTurn:c=>{if(foes(c).length>cardsIn(c.lane,c.owner).length)buff(c,1);}},
@@ -209,7 +209,7 @@ async function resolveAstroCard(c){
  if(id==='a1'){
   const lanes=openMoveLanes(o,c.lane);
   const to=await chooseAstroLane('Звёздная пыль: выбери, куда переместить карту',lanes,o,l=>astroLaneScore(l,o,'move'),true);
-  if(to!==null)moveCard(c,to);
+  if(to!==null&&moveCard(c,to))buff(c,1);
  }
 
  if(id==='a5'&&G.turn<6){
@@ -222,6 +222,17 @@ async function resolveAstroCard(c){
   const target=await chooseAstroLane('Галактика: выбери правило для отключения',lanes,o,l=>astroLaneScore(l,o,'suppress'));
   if(target!==null){G.locDisabledUntil[target]=G.turn+1;say(`⏸ Правило локации «${loc(target).name}» отключено на следующем ходу`);}
  }
+ if(id==='a9'){
+  for(const lane of [0,1,2].filter(l=>l!==c.lane)){
+   const targets=cardsIn(lane,o);
+   if(!targets.length)continue;
+   const target=await chooseAstroCard(`Колесо судьбы: выбери карту в локации «${loc(lane).name}»`,targets,o,t=>{
+    const diff=laneTotal(lane,o)-laneTotal(lane,foe);
+    return -Math.abs(diff)+(diff<0?1:0)+(laneWinner(lane)===o?0.25:0);
+   });
+   if(target){buff(target,2);say(`🎡 «${target.def.name}» получила +2 силы`);}
+  }
+ }
  if(id==='a10'){
   const n=3,opts=G.deck[o].slice(-n);
   if(opts.length){const choice=await chooseAstroCard('Астромантка: выбери карту',opts,o);takeTopOptions(o,n,()=>choice);}
@@ -231,13 +242,17 @@ async function resolveAstroCard(c){
   }
  }
  if(id==='a12'){
-  const sources=allRev(o).filter(t=>t!==c&&t.buff>0);
+  const sources=allRev(o).filter(t=>t!==c);
   if(sources.length){
-   const source=await chooseAstroCard('Сверхновая: выбери карту, с которой перенести силу',sources,o,t=>t.buff+Math.max(0,laneTotal(t.lane,o)-laneTotal(t.lane,foe))*.1);
-   const targets=allRev(o).filter(t=>t!==source&&t.lane!==source.lane);
-   if(source&&targets.length){
-    const target=await chooseAstroCard('Сверхновая: выбери карту в другой локации',targets,o,t=>-Math.abs(laneTotal(t.lane,o)-laneTotal(t.lane,foe)));
-    if(target){const amount=Math.min(3,source.buff);buff(source,-amount);buff(target,amount);say(`✨ Перенесено ${amount} силы: «${source.def.name}» → «${target.def.name}»`);}
+   const source=await chooseAstroCard('Сверхновая: выбери свою карту для перемещения',sources,o,t=>{
+    const lanes=openMoveLanes(o,t.lane);
+    const best=lanes.reduce((score,l)=>Math.max(score,astroLaneScore(l,o,'move')),0);
+    return power(t)+best*.15;
+   });
+   if(source){
+    const lanes=openMoveLanes(o,source.lane);
+    const target=await chooseAstroLane('Сверхновая: выбери новую локацию',lanes,o,l=>astroLaneScore(l,o,'move'));
+    if(target!==null)moveCard(source,target);
    }
   }
  }
@@ -260,7 +275,7 @@ async function endTurn(){
   const tr=G.trap[c.lane];if(tr[other(c.owner)]){tr[other(c.owner)]=false;buff(c,-3);say(`🪤 Капкан! «${c.def.name}» −3`);}
   const L=loc(c.lane);if(L&&!locationRuleDisabled(c.lane)&&L.onPlay)L.onPlay(c);
   if(c.def.onReveal&&c.lane>=0)c.def.onReveal(c);
-  if(c.def.f==='ast'&&['a1','a3','a5','a7','a10','a12'].includes(c.def.id))await resolveAstroCard(c);
+  if(c.def.f==='ast'&&['a1','a3','a5','a7','a9','a10','a12'].includes(c.def.id))await resolveAstroCard(c);
   render();await sleep(650);
  }
  let any=false;
