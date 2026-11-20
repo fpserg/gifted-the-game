@@ -290,3 +290,10 @@ html,body{background:#160e09}
 .splash-play:focus-visible{outline:3px solid #fff;outline-offset:5px}
 @media(max-width:480px){.box.splash-box{padding:24px 12px}.splash-cast{margin:30px 0 24px;gap:8px}.splash-hero{padding-bottom:55px}.splash-portrait{aspect-ratio:3/5}.splash-deck{width:96%;height:30%;bottom:29px}.splash-deck img,.splash-back{border-width:1px}.splash footer p{max-width:240px;margin:16px auto 0}}
 @media(orientation:landscape) and (max-height:600px){.box.splash-box{max-width:800px;padding:12px 24px}.splash h1{font-size:38px}.splash .splash-kicker{font-size:8px;margin-bottom:4px}.splash .splash-tagline{margin-top:5px;font-size:11px}.splash-cast{max-width:480px;margin:10px auto;gap:24px}.splash-portrait{aspect-ratio:1.4}.splash-hero{padding-bottom:35px}.splash-deck{height:48%;bottom:22px;width:70%}.splash-hero figcaption{font-size:12px}.splash-play{padding:8px 26px;font-size:16px}.splash footer p{margin-top:10px;font-size:10px}}
+
+/* The illustrated poster is the actual opening screen. */
+.box.splash-box{width:min(100%,600px);max-width:600px;padding:0;position:relative;overflow:hidden;border-radius:18px;background:#120d0a;border:1px solid #bb8a50}
+.splash-poster{position:relative;width:100%;line-height:0}
+.splash-poster-art{display:block;width:100%;height:auto;max-height:min(82dvh,920px);object-fit:contain;margin:auto}
+.splash-poster .splash-play{position:absolute;left:50%;bottom:clamp(14px,4vh,38px);transform:translateX(-50%);line-height:1.2;z-index:1}
+@media(orientation:landscape) and (max-height:600px){.box.splash-box{width:auto;height:94dvh;max-width:initial}.splash-poster{height:100%;display:flex;justify-content:center}.splash-poster-art{height:100%;width:auto;max-height:100%;max-width:100%;object-fit:contain}.splash-poster .splash-play{bottom:12px}}
