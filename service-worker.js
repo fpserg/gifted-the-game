@@ -1,14 +1,14 @@
-const CACHE_NAME = 'game-of-gifts-v7-menu-remediation';
+const CACHE_NAME = 'game-of-gifts-v8-approved-medallions';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=menu-fix2',
-  './game.js?v=menu-fix2',
+  './styles.css?v=approved-medallions-1',
+  './game.js?v=approved-medallions-1',
   './manifest.json',
-  './tutorial.js?v=menu-fix2',
+  './tutorial.js?v=approved-medallions-1',
   './assets/ui/splash-poster-v2.webp',
-  './assets/ui/menu-game-v2.webp',
-  './assets/ui/menu-tutorial-v2.webp',
+  './assets/ui/menu-game-v2.webp?v=approved-medallions-1',
+  './assets/ui/menu-tutorial-v2.webp?v=approved-medallions-1',
   './assets/ui/card-back.webp',
   './assets/ui/table.webp',
   './assets/icons/icon-192.png',
@@ -46,7 +46,7 @@ self.addEventListener('fetch', event => {
 
   // UI medallions are network-first so a stale PWA cache cannot hide both main actions.
   if (url.pathname.includes('/assets/ui/menu-')) {
-    event.respondWith(fetch(request).then(response => {if(response.ok){const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(request,copy));return response;}return caches.match(request).then(cached=>cached||response);}).catch(()=>caches.match(request)));
+    event.respondWith(fetch(request,{cache:'reload'}).then(response => {if(response.ok){const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(request,copy));return response;}return caches.match(request).then(cached=>cached||response);}).catch(()=>caches.match(request)));
     return;
   }
   event.respondWith(caches.match(request).then(cached => cached || fetch(request).then(response => {
