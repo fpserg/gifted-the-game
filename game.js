@@ -78,12 +78,13 @@ let G=null,UID=1,FAST=false;
 function inst(def,owner){return{uid:UID++,def,owner,lane:-1,buff:0,revealed:false,pending:false,paid:0,usedDisc:false,usedSurcharge:false,flash:null,revAt:0};}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
-function newGame(pf){
- const ef=rndOf(Object.keys(FACTIONS).filter(f=>f!==pf));
- const locs=shuffle([...LOCS]).slice(0,3);
+function newGame(pf,scenario=null){
+ gameMode=scenario?'tutorial':'normal';
+ const ef=scenario?scenario.opponentFaction:rndOf(Object.keys(FACTIONS).filter(f=>f!==pf));
+ const locs=scenario?scenario.locations.map(id=>LOCS.find(l=>l.id===id)):shuffle([...LOCS]).slice(0,3);
  G={turn:0,fac:{p:pf,e:ef},deck:{p:[],e:[]},discard:{p:[],e:[]},hand:{p:[],e:[]},board:[[],[],[]],locs,locRev:[false,false,false],
   spent:{p:0,e:0},discount:{p:0,e:0},surcharge:{p:0,e:0},blockedUntil:{p:[0,0,0],e:[0,0,0]},locDisabledUntil:[0,0,0],trap:[{p:false,e:false},{p:false,e:false},{p:false,e:false}],phase:'plan',sel:null,info:null,busy:false};
- for(const o of ['p','e']){G.deck[o]=shuffle(CARDS.filter(c=>c.f===G.fac[o]).map(d=>inst(d,o)));for(let i=0;i<3;i++)draw(o);}
+ for(const o of ['p','e']){G.deck[o]=scenario?scenario.decks[o].map(id=>inst(CARDS.find(d=>d.id===id),o)).reverse():shuffle(CARDS.filter(c=>c.f===G.fac[o]).map(d=>inst(d,o)));for(let i=0;i<3;i++)draw(o);}
  startTurn();
 }
 function draw(o){if(!G.deck[o].length||G.hand[o].length>=7)return;G.hand[o].push(G.deck[o].pop());}
@@ -114,17 +115,20 @@ function canPlay(o,l,turn=G.turn){if(G.blockedUntil[o][l]===turn)return false;co
  return G.board[l].filter(c=>c.owner===o).length<capOf(l,turn);}
 function moveCard(c,l){if(!c||c.lane<0||c.lane===l||!canPlay(c.owner,l))return false;const from=G.board[c.lane],i=from.indexOf(c);if(i<0)return false;from.splice(i,1);G.board[l].push(c);c.lane=l;say(`↔️ «${c.def.name}» перемещена в ${loc(l).name}`);return true;}
 function place(o,c,l){
+ if(gameMode==='tutorial'&&!Tutorial.beforePlace(o,c,l))return false;
  const cost=effCost(o,c);c.paid=cost;c.usedDisc=!!G.discount[o]&&c.def.cost>0;c.usedSurcharge=(G.surcharge[o]||0)>0;if(c.usedDisc)G.discount[o]=0;if(c.usedSurcharge)G.surcharge[o]=0;
  G.spent[o]+=cost;G.hand[o].splice(G.hand[o].indexOf(c),1);c.lane=l;c.pending=true;G.board[l].push(c);
+ if(gameMode==='tutorial'&&o==='p')Tutorial.placed();
+ return true;
 }
-function unplace(c){const o=c.owner;G.board[c.lane].splice(G.board[c.lane].indexOf(c),1);c.lane=-1;c.pending=false;
- G.spent[o]-=c.paid;if(c.usedDisc){G.discount[o]=1;c.usedDisc=false;}if(c.usedSurcharge){G.surcharge[o]=1;c.usedSurcharge=false;}G.hand[o].push(c);}
+function unplace(c){if(gameMode==='tutorial'&&(!c.pending||G.phase!=='plan'))return false;const o=c.owner;G.board[c.lane].splice(G.board[c.lane].indexOf(c),1);c.lane=-1;c.pending=false;
+ G.spent[o]-=c.paid;if(c.usedDisc){G.discount[o]=1;c.usedDisc=false;}if(c.usedSurcharge){G.surcharge[o]=1;c.usedSurcharge=false;}G.hand[o].push(c);if(gameMode==='tutorial'&&o==='p')Tutorial.undone();}
 
 function startTurn(){
  G.turn++;G.spent={p:0,e:0};
  if(G.turn<=3){G.locRev[G.turn-1]=true;}
  draw('p');draw('e');
- aiPlan('e');
+ if(gameMode==='tutorial'){Tutorial.turn();Tutorial.opponent();}else aiPlan('e');
  G.phase='plan';G.sel=null;
  render();
 }
@@ -255,6 +259,8 @@ async function resolveAstroCard(c){
 const sleep=ms=>FAST?Promise.resolve():new Promise(r=>setTimeout(r,ms));
 async function endTurn(){
  if(G.phase!=='plan')return;
+ if(gameMode==='tutorial'&&!Tutorial.canEnd()){tutorialState.error='Сначала выполни подсвеченное действие.';render();return;}
+ const session=G;
  G.phase='reveal';G.sel=null;render();
  let lead=0;for(let l=0;l<3;l++){const w=laneWinner(l);if(w==='p')lead++;else if(w==='e')lead--;}
  const first=lead<0?'e':'p';
@@ -270,12 +276,13 @@ async function endTurn(){
   const L=loc(c.lane);if(L&&!locationRuleDisabled(c.lane)&&L.onPlay)L.onPlay(c);
   if(c.def.onReveal&&c.lane>=0)c.def.onReveal(c);
   if(c.def.f==='ast'&&['a3','a5','a7','a9','a10','a12'].includes(c.def.id))await resolveAstroCard(c);
-  render();await sleep(650);
+  render();await sleep(650);if(G!==session)return;
  }
  let any=false;
  for(const c of allRev())if(c.def.endTurn){c.def.endTurn(c);any=true;}
  for(let l=0;l<3;l++){const L=loc(l);if(L&&!locationRuleDisabled(l)&&L.endTurn){L.endTurn(l);any=true;}}
- if(any){render();await sleep(500);}
+ if(any){render();await sleep(500);if(G!==session)return;}
+ if(gameMode==='tutorial'){Tutorial.afterReveal();return;}
  if(G.turn>=6)finish();else startTurn();
 }
 
@@ -287,6 +294,7 @@ function finish(){
  if(w.p!==w.e)res=w.p>w.e?'p':'e';
  else{const tp=lanes.reduce((s,x)=>s+x.p,0),te=lanes.reduce((s,x)=>s+x.e,0);res=tp===te?null:(tp>te?'p':'e');}
  G.result=res;
+ if(gameMode==='tutorial'){Tutorial.finish(w,lanes);return;}
  if(!HAS_DOM)return;
  setTimeout(()=>{
   const t=res==='p'?'Победа! 🏆':res==='e'?'Поражение':'Ничья';
@@ -408,6 +416,7 @@ function tutorialEvent(event){
  else if(event==='end'&&tutorialStep>=2)tutorialStep=4;
 }
 function renderCoach(){
+ if(gameMode==='tutorial'&&HAS_DOM&&G){Tutorial.render();return;}
  if(!HAS_DOM)return;const el=$('coach');if(!el)return;
  el.classList.toggle('hide',!tutorialActive||!G);
  document.querySelectorAll('.teach').forEach(e=>e.classList.remove('teach'));
@@ -425,15 +434,17 @@ function renderCoach(){
  el.innerHTML=`<div><small>ОБУЧЕНИЕ</small><b>${title}</b><p>${body}</p></div><button class="coach-close" aria-label="Завершить обучение">${G.phase==='over'?'Понятно':'Пропустить'}</button>`;
  el.querySelector('button').onclick=finishTutorial;
 }
-function startMatch(training){closeOv();logLines=[];tutorialActive=training;tutorialStep=0;newGame(pickedHero);}
+function startMatch(training){gameMode='normal';if(HAS_DOM)document.body.classList.remove('first-battle');closeOv();logLines=[];tutorialActive=training;tutorialStep=0;newGame(pickedHero);}
 function splashScreen(){
  openOv(`<section class="splash splash-poster" aria-label="Постер Game of Gifts">
  <img class="splash-poster-art" src="assets/ui/splash-poster-v2.webp" alt="Инженер заносит карту, Астромантка сидит за столом с колодой, Хранитель закрывает лицо веером карт">
  <button class="splash-play" id="splashPlay" aria-label="Играть"><img src="assets/ui/play-medallion.webp" alt="ИГРАТЬ" width="320" height="320"></button>
+ <button class="lesson-launch" id="firstBattle">🎓 Обучение — Первая битва${Tutorial.completed()?'':'<small>Рекомендуем для первой игры</small>'}</button>
  </section>`);
  $('ovbox').classList.add('splash-box');
  $('ov').classList.add('splash-overlay');
  $('splashPlay').onclick=heroPick;
+ $('firstBattle').onclick=()=>Tutorial.intro();
 }
 function heroPick(){
  const seen=tutorialSeen();
@@ -442,8 +453,8 @@ function heroPick(){
  <div class="pick-actions"><button class="btn" id="startMatch">В бой · ${FACTIONS[pickedHero].name}</button><button class="btn sec" id="training">${seen?'Повторить обучение':'Начать с обучением'}</button><button class="btn sec" id="pickLib">Все карты</button></div><p class="pick-rule">Выиграй большинство локаций. При равенстве решает общая сила.</p>`);
  $('ovbox').classList.add('hero-box');
  document.querySelectorAll('.hero').forEach(b=>b.onclick=()=>{pickedHero=b.dataset.f;heroPick();});
- $('startMatch').onclick=()=>startMatch(!seen);
- $('training').onclick=()=>startMatch(true);
+ $('startMatch').onclick=()=>startMatch(false);
+ $('training').onclick=()=>Tutorial.intro();
  $('pickLib').onclick=()=>library(pickedHero,'pick');
 }
 // An upward drag plays a hand card; horizontal swipes remain native hand scrolling.

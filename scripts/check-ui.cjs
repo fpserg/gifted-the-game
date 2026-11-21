@@ -5,9 +5,9 @@ class Element{
  addEventListener(type,fn){this.handlers[type]=fn}querySelector(){return new Element()}closest(){return null}cloneNode(){return new Element()}removeAttribute(){}setAttribute(){}remove(){}
 }
 const els=new Map(),el=id=>{if(!els.has(id))els.set(id,new Element());return els.get(id)};
-const timers=[],windowHandlers={};let hit=null;const doc={getElementById:el,querySelectorAll:()=>[],body:{append(){}},elementFromPoint:()=>hit};
+const timers=[],windowHandlers={};let hit=null;const doc={getElementById:el,querySelectorAll:()=>[],body:{append(){},classList:new Element().classList},elementFromPoint:()=>hit};
 const context={console,Date,Math,performance,Promise,document:doc,localStorage:{getItem:()=>null,setItem(){}},setTimeout:fn=>{timers.push(fn)},window:{addEventListener:(type,fn)=>windowHandlers[type]=fn}};
-vm.createContext(context);vm.runInContext(fs.readFileSync('game.js','utf8'),context);
+vm.createContext(context);vm.runInContext(fs.readFileSync('tutorial.js','utf8')+'\n'+fs.readFileSync('game.js','utf8'),context);
 const run=s=>vm.runInContext(s,context);
 (async()=>{
  assert(el('ov').classes.has('splash-overlay'));
