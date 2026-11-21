@@ -1,4 +1,4 @@
-const CACHE_NAME = 'game-of-gifts-v6-menu-fix';
+const CACHE_NAME = 'game-of-gifts-v7-menu-remediation';
 const APP_SHELL = [
   './',
   './index.html',
@@ -46,7 +46,7 @@ self.addEventListener('fetch', event => {
 
   // UI medallions are network-first so a stale PWA cache cannot hide both main actions.
   if (url.pathname.includes('/assets/ui/menu-')) {
-    event.respondWith(fetch(request).then(response => {if(response.ok){const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(request,copy));}return response;}).catch(()=>caches.match(request)));
+    event.respondWith(fetch(request).then(response => {if(response.ok){const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(request,copy));return response;}return caches.match(request).then(cached=>cached||response);}).catch(()=>caches.match(request)));
     return;
   }
   event.respondWith(caches.match(request).then(cached => cached || fetch(request).then(response => {
