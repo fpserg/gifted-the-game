@@ -346,6 +346,8 @@ html,body{background:#160e09}
 .menu-action.art-loaded .menu-action-fallback{visibility:hidden;}
 /* Once decoded, display the exact illustrated medallion, without a second CSS rim. */
 .menu-action.art-loaded{padding:0;border:0;background:none;box-shadow:none;}
+/* ID-specific fallback background must not show through transparent WebP edges. */
+.menu-action#firstBattle.art-loaded{background:none;}
 .menu-action.art-loaded img{opacity:1;}
 .menu-action:focus-visible{outline:3px solid #fff5bf;outline-offset:4px;}
 [hidden]{display:none!important;}
