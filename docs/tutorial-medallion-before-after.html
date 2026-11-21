@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIFTED — сравнение ободка медальона</title>
+<link rel="stylesheet" href="../styles.css?v=tutorial-ring-fix1">
+<style>
+body{min-height:100vh;margin:0;padding:28px 12px;background:#16101c;color:#f8e8c3;font-family:system-ui,sans-serif}
+h1{text-align:center;font-size:20px;margin:0 0 10px}
+p{text-align:center;max-width:560px;margin:0 auto 22px;line-height:1.4}
+.comparison{display:flex;justify-content:center;gap:24px;flex-wrap:wrap}
+.preview{display:flex;flex-direction:column;align-items:center;gap:12px;padding:18px;min-width:225px;border:1px solid #98764c;border-radius:12px;background:#201a19}
+.preview h2{font-size:16px;margin:0}
+.preview .menu-action{width:190px;height:190px;min-height:0;aspect-ratio:1}
+.preview .menu-action img{opacity:1}
+.preview .menu-action .menu-action-fallback{visibility:hidden}
+.before .menu-action#firstBattle.art-loaded{background:radial-gradient(circle at 40% 26%,#e0ffbc,#78bd6c 49%,#246f50 78%,#102e24)}
+.caption{font-size:12px;color:#cbbda7;text-align:center}
+</style>
+</head>
+<body>
+<h1>GIFTED — «ОБУЧЕНИЕ»: внешний зелёный ободок</h1>
+<p>Один и тот же WebP-арт в обоих состояниях. Слева воспроизведён прежний CSS-фон, просвечивающий через прозрачные края. Справа фон полностью отключён.</p>
+<div class="comparison">
+ <section class="preview before">
+  <h2>До — фон виден</h2>
+  <button class="menu-action art-loaded" id="firstBattle" type="button" aria-label="Обучение (до)" disabled><span class="menu-action-fallback">ОБУЧЕНИЕ</span><img src="../assets/ui/menu-tutorial-v2.webp?v=approved-medallions-1" width="1254" height="1254" alt=""></button>
+  <div class="caption">Старый CSS: фон под прозрачным WebP</div>
+ </section>
+ <section class="preview after">
+  <h2>После — только оригинальный арт</h2>
+  <button class="menu-action art-loaded" id="firstBattle" type="button" aria-label="Обучение (после)" disabled><span class="menu-action-fallback">ОБУЧЕНИЕ</span><img src="../assets/ui/menu-tutorial-v2.webp?v=approved-medallions-1" width="1254" height="1254" alt=""></button>
+  <div class="caption">Новый CSS: background:none</div>
+ </section>
+</div>
+</body>
+</html>
