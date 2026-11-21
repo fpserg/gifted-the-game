@@ -344,6 +344,9 @@ html,body{background:#160e09}
 .menu-action.art-loaded img{opacity:1;}
 /* The original painted medallion replaces, rather than overlays, fallback lettering. */
 .menu-action.art-loaded .menu-action-fallback{visibility:hidden;}
+/* Once decoded, display the exact illustrated medallion, without a second CSS rim. */
+.menu-action.art-loaded{padding:0;border:0;background:none;box-shadow:none;}
+.menu-action.art-loaded img{opacity:1;}
 .menu-action:focus-visible{outline:3px solid #fff5bf;outline-offset:4px;}
 [hidden]{display:none!important;}
 @media(max-width:360px){.menu-action{min-height:94px;border-width:4px}.menu-action .menu-action-fallback{font-size:16px}.menu-action#firstBattle .menu-action-fallback{font-size:12px}}
