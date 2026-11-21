@@ -334,3 +334,14 @@ html,body{background:#160e09}
 .first-battle #board{flex:0 0 auto}.first-battle .slot,.first-battle .mc{height:48px}.first-battle #hand{min-height:108px}.first-battle #hand .hc{min-width:68px;height:98px}
 @media(orientation:landscape) and (max-height:600px){.first-battle #app{display:flex;height:auto;overflow:visible}.first-battle #coach{width:auto}.first-battle #info,.first-battle #log{position:static;width:auto}.first-battle #hand{width:100%}.first-battle #bottom{position:static}}
 
+
+/* Menu images are enhancement, not the only control: degraded/offline PWA stays usable. */
+.menu-action{position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(circle at 40% 28%,#ffe69b,#c79543 48%,#694019 77%,#281609);border:5px solid #efbf63;box-shadow:inset 0 0 0 3px #86541e,0 5px 13px #000b;min-height:108px;}
+.menu-action .menu-action-fallback{position:relative;z-index:1;display:block;color:#271806;font:900 clamp(15px,4vw,23px)/1.1 Georgia,serif;text-shadow:0 1px 1px #fff3ba,0 2px 2px #0005;letter-spacing:.01em;white-space:nowrap;}
+.menu-action#firstBattle{background:radial-gradient(circle at 40% 26%,#e0ffbc,#78bd6c 49%,#246f50 78%,#102e24);border-color:#b8df8a;}
+.menu-action#firstBattle .menu-action-fallback{font-size:clamp(12px,3.2vw,19px);}
+.menu-action img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .2s ease;}
+.menu-action.art-loaded img{opacity:1;}
+.menu-action:focus-visible{outline:3px solid #fff5bf;outline-offset:4px;}
+[hidden]{display:none!important;}
+@media(max-width:360px){.menu-action{min-height:94px;border-width:4px}.menu-action .menu-action-fallback{font-size:16px}.menu-action#firstBattle .menu-action-fallback{font-size:12px}}
