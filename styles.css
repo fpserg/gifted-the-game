@@ -319,12 +319,16 @@ html,body{background:#160e09}
   #ov.splash-overlay .splash-play { bottom: max(24px, calc(env(safe-area-inset-bottom) + 12px)); }
 }
 /* First Battle: guidance stays in document flow, below the board. */
-.lesson-launch{position:absolute;bottom:max(8px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:max-content;max-width:94%;border:1px solid #d5b16f;background:#21170fee;color:#ffe0a1;border-radius:12px;padding:10px 16px;cursor:pointer;font-size:14px;line-height:1.3}
-.lesson-launch small{display:block;font-size:11px;color:#e4cdb0}
-#ov.splash-overlay .splash-play{bottom:max(84px,calc(env(safe-area-inset-bottom) + 70px))}
+/* Equal, adjacent entry points with readable labels instead of baked-in artwork. */
+.splash-actions{position:absolute;left:max(16px,env(safe-area-inset-left));right:max(16px,env(safe-area-inset-right));bottom:max(24px,env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-width:440px;margin:0 auto}
+.menu-action{min-height:64px;min-width:0;padding:14px 8px;border:2px solid #f3cb7d;border-radius:18px;color:#ffe4a3;background:radial-gradient(ellipse at 50% 100%,#284787,#171634 60%,#090e23);box-shadow:inset 0 0 0 3px #73512b,inset 0 0 18px #b98a4a55,0 5px 0 #60401e,0 8px 20px #000b;font-family:Georgia,serif;font-size:clamp(19px,5vw,28px);font-weight:bold;text-shadow:0 2px 2px #000;cursor:pointer;touch-action:manipulation}
+.menu-action:active{transform:translateY(3px);box-shadow:inset 0 0 0 3px #73512b,0 2px 0 #60401e}
+.menu-action:focus-visible{outline:3px solid #fff;outline-offset:5px}
+.menu-recommendation{grid-column:1/-1;text-align:center;color:#ffe4bc;font-size:12px;line-height:1.4;text-shadow:0 2px 3px #000;background:#100c10cc;padding:6px;border-radius:8px}
+@media(orientation:landscape) and (max-height:600px){.splash-actions{max-width:360px;gap:8px;bottom:max(16px,env(safe-area-inset-bottom))}.menu-action{min-height:48px;padding:10px;font-size:22px}}
 .lesson-intro{text-align:center}.lesson-intro>img{width:110px;border-radius:50%;border:2px solid #ba8a48}.lesson-intro .btn{margin:6px}
 .lesson-target{outline:3px solid #ffe18a!important;outline-offset:-3px;box-shadow:0 0 15px #ffca5888!important}
 .first-battle #coach{position:static;display:flex;gap:8px;max-height:none;overflow:visible;padding:10px;background:#251c16;border:1px solid #b18c50;border-radius:12px}
 .lesson-avatar{width:40px;height:40px;border-radius:50%;flex-shrink:0}.first-battle #coach p{font-size:12px;line-height:1.35;margin:4px 0}.first-battle #coach small{font-size:10px}.first-battle #coach .btn{padding:7px 14px;font-size:13px}.first-battle #coach .coach-close{margin:4px 0 0 8px;font-size:11px}.lesson-error{color:#ffd28a}
 .first-battle #board{flex:0 0 auto}.first-battle .slot,.first-battle .mc{height:48px}.first-battle #hand{min-height:108px}.first-battle #hand .hc{min-width:68px;height:98px}
-@media(orientation:landscape) and (max-height:600px){.first-battle #app{display:flex;height:auto;overflow:visible}.first-battle #coach{width:auto}.first-battle #info,.first-battle #log{position:static;width:auto}.first-battle #hand{width:100%}.first-battle #bottom{position:static}.lesson-launch{left:76%;max-width:38%;font-size:12px}}
+@media(orientation:landscape) and (max-height:600px){.first-battle #app{display:flex;height:auto;overflow:visible}.first-battle #coach{width:auto}.first-battle #info,.first-battle #log{position:static;width:auto}.first-battle #hand{width:100%}.first-battle #bottom{position:static}}

@@ -438,8 +438,11 @@ function startMatch(training){gameMode='normal';if(HAS_DOM)document.body.classLi
 function splashScreen(){
  openOv(`<section class="splash splash-poster" aria-label="Постер Game of Gifts">
  <img class="splash-poster-art" src="assets/ui/splash-poster-v2.webp" alt="Инженер заносит карту, Астромантка сидит за столом с колодой, Хранитель закрывает лицо веером карт">
- <button class="splash-play" id="splashPlay" aria-label="Играть"><img src="assets/ui/play-medallion.webp" alt="ИГРАТЬ" width="320" height="320"></button>
- <button class="lesson-launch" id="firstBattle">🎓 Обучение — Первая битва${Tutorial.completed()?'':'<small>Рекомендуем для первой игры</small>'}</button>
+ <nav class="splash-actions" aria-label="Главное меню">
+ <button class="menu-action" id="splashPlay">Игра</button>
+ <button class="menu-action" id="firstBattle">Обучение</button>
+ ${Tutorial.completed()?'':'<small class="menu-recommendation">Впервые здесь? Начни с обучения «Первая битва»</small>'}
+ </nav>
  </section>`);
  $('ovbox').classList.add('splash-box');
  $('ov').classList.add('splash-overlay');
@@ -447,14 +450,12 @@ function splashScreen(){
  $('firstBattle').onclick=()=>Tutorial.intro();
 }
 function heroPick(){
- const seen=tutorialSeen();
  openOv(`<div class="pick-heading"><small>GAME OF GIFTS</small><h2>Выбери своего героя</h2><p>Три стиля игры. Шесть ходов. Одна победа.</p></div>
  <div class="heroes">${Object.entries(FACTIONS).map(([k,F])=>`<button class="hero hero-card" data-f="${k}" aria-pressed="${k===pickedHero}" style="--hero-color:${F.color}"><img src="${IMG[AV[k]]}" alt=""><div class="hero-copy"><small>${k==='eng'?'СОЗИДАНИЕ':k==='ast'?'ЗВЁЗДНАЯ МАГИЯ':'ТЕНЕВОЙ КОНТРОЛЬ'}</small><b>${F.name}</b><span>${F.desc}</span><em>${k===pickedHero?'Выбран':'Выбрать'}</em></div></button>`).join('')}</div>
- <div class="pick-actions"><button class="btn" id="startMatch">В бой · ${FACTIONS[pickedHero].name}</button><button class="btn sec" id="training">${seen?'Повторить обучение':'Начать с обучением'}</button><button class="btn sec" id="pickLib">Все карты</button></div><p class="pick-rule">Выиграй большинство локаций. При равенстве решает общая сила.</p>`);
+ <div class="pick-actions"><button class="btn" id="startMatch">В бой · ${FACTIONS[pickedHero].name}</button><button class="btn sec" id="pickLib">Все карты</button></div><p class="pick-rule">Выиграй большинство локаций. При равенстве решает общая сила.</p>`);
  $('ovbox').classList.add('hero-box');
  document.querySelectorAll('.hero').forEach(b=>b.onclick=()=>{pickedHero=b.dataset.f;heroPick();});
  $('startMatch').onclick=()=>startMatch(false);
- $('training').onclick=()=>Tutorial.intro();
  $('pickLib').onclick=()=>library(pickedHero,'pick');
 }
 // An upward drag plays a hand card; horizontal swipes remain native hand scrolling.

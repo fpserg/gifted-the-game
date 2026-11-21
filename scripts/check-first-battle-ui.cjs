@@ -10,6 +10,10 @@ const context={console,Date,Math,performance,Promise,document:doc,localStorage:{
 vm.createContext(context);vm.runInContext(fs.readFileSync('tutorial.js','utf8')+'\n'+fs.readFileSync('game.js','utf8'),context);
 const run=s=>vm.runInContext(s,context);
 (async()=>{
+ assert(el('ovbox').innerHTML.includes('id="splashPlay">Игра</button>'));
+ assert(el('ovbox').innerHTML.includes('id="firstBattle">Обучение</button>'));
+ el('splashPlay').onclick();assert(!el('ovbox').innerHTML.includes('id="training"'));assert(!el('ovbox').innerHTML.includes('Обучение'));
+ run('splashScreen()');
  el('firstBattle').onclick();assert(el('ovbox').innerHTML.includes('Начать обучение'));
  el('lessonStart').onclick();run('FAST=true');assert.equal(run('gameMode'),'tutorial');
  for(let turn=1;turn<=6;turn++){
@@ -21,7 +25,7 @@ const run=s=>vm.runInContext(s,context);
   await run('endTurn()');assert(el('coach').innerHTML.includes('Продолжить'));el('lessonNext').onclick();
  }
  assert(el('ovbox').innerHTML.includes('Первая победа!'));assert(el('ovbox').innerHTML.includes('2:1'));
- el('lessonRepeat').onclick();assert.equal(run('G.turn'),1);el('lessonExit').onclick();el('lessonStay').onclick();assert.equal(run('gameMode'),'tutorial');el('lessonExit').onclick();el('lessonLeave').onclick();assert.equal(run('gameMode'),'normal');el('splashPlay').onclick();el('startMatch').onclick();assert.equal(run('gameMode'),'normal');assert(!run('tutorialActive'));
+ el('lessonRepeat').onclick();assert.equal(run('G.turn'),1);el('lessonExit').onclick();el('lessonStay').onclick();assert.equal(run('gameMode'),'tutorial');el('lessonExit').onclick();el('lessonLeave').onclick();assert.equal(run('gameMode'),'normal');el('splashPlay').onclick();el('startMatch').onclick();assert.equal(run('gameMode'),'normal');assert(!run('tutorialActive'));el('helpBtn').onclick();assert(run('tutorialActive'));assert.equal(run('gameMode'),'normal');
  run('Tutorial.start();FAST=false');run("place('p',G.hand.p.find(c=>c.def.id==='e1'),0);unplace(G.board[0].find(c=>c.owner==='p'));place('p',G.hand.p.find(c=>c.def.id==='e1'),0)");const pending=run('endTurn()');run('Tutorial.menu()');timers.splice(0).forEach(fn=>fn());await pending;assert.equal(run('G'),null);
  console.log('PASS: tutorial menu, tap/undo flow, six confirmations, final, repeat, exit confirmation and normal match');
 })().catch(e=>{console.error(e);process.exitCode=1});
