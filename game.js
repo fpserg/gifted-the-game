@@ -439,8 +439,8 @@ function splashScreen(){
  openOv(`<section class="splash splash-poster" aria-label="Постер Game of Gifts">
  <img class="splash-poster-art" src="assets/ui/splash-poster-v2.webp" alt="Инженер заносит карту, Астромантка сидит за столом с колодой, Хранитель закрывает лицо веером карт">
  <nav class="splash-actions" aria-label="Главное меню">
- <button class="menu-action" id="splashPlay">Игра</button>
- <button class="menu-action" id="firstBattle">Обучение</button>
+ <button class="menu-action menu-game" id="splashPlay">Игра</button>
+ <button class="menu-action menu-training" id="firstBattle">Обучение</button>
  ${Tutorial.completed()?'':'<small class="menu-recommendation">Впервые здесь? Начни с обучения «Первая битва»</small>'}
  </nav>
  </section>`);
@@ -498,3 +498,4 @@ function installGestures(){
  window.addEventListener('pointercancel',clear);window.addEventListener('blur',clear);
 }
 if(HAS_DOM){installGestures();splashScreen();}
+

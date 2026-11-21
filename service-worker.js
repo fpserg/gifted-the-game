@@ -1,11 +1,11 @@
-const CACHE_NAME = 'game-of-gifts-v4-first-battle-menu';
+const CACHE_NAME = 'game-of-gifts-v5-pwa-safe-area';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=first-battle2',
-  './game.js?v=first-battle2',
+  './styles.css?v=first-battle3',
+  './game.js?v=first-battle3',
   './manifest.json',
-  './tutorial.js?v=first-battle2',
+  './tutorial.js?v=first-battle3',
   './assets/ui/splash-poster-v2.webp',
   './assets/ui/play-medallion.webp',
   './assets/ui/card-back.webp',
@@ -51,3 +51,4 @@ self.addEventListener('fetch', event => {
     return response;
   })));
 });
+
