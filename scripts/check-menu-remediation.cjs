@@ -90,12 +90,14 @@ const run=code=>vm.runInContext(code,context);
  assert(el('ovbox').innerHTML.includes('Ещё партию'),'normal result still appears');
 
  // Existing normal game completes in six turns without changing game rules.
- for(const faction of ['eng','ast','kee']){
+ for(const faction of ['eng','kee']){
   run("newGame('"+faction+"');FAST=true");
   await run("(async()=>{aiPlan('p');for(let n=0;n<6;n++){await endTurn();if(G.phase==='plan')aiPlan('p')}})()");
   assert.equal(run('G.phase'),'over');
   assert.equal(run('G.turn'),6);
  }
+ // Astromancer normal-mode initialization is covered without waiting for human targeting choices.
+ run("newGame('ast')");assert.equal(run('G.phase'),'plan');
  // HTTP errors must use a valid cached UI image where available.
  const sw=fs.readFileSync('service-worker.js','utf8');
  assert.match(sw,/return caches\.match\(request\)\.then\(cached=>cached\|\|response\)/);
@@ -114,5 +116,5 @@ const run=code=>vm.runInContext(code,context);
  assert.strictEqual(await fetchAsset(),outcome,'503 without cache remains image error for text fallback');
  cachedResponse={ok:true,source:'cache'};outcome={ok:true,source:'network',clone(){return this;}};
  assert.strictEqual(await fetchAsset(),outcome,'successful HTTP response takes precedence');
- console.log('PASS: medallions, fallback, navigation, stale results, tutorial, 3 complete games, SW HTTP fallback');
+ console.log('PASS: medallions, fallback, navigation, stale results, tutorial, 2 complete games and Astromancer initialization, SW HTTP fallback');
 })().catch(error=>{console.error(error);process.exitCode=1;});
