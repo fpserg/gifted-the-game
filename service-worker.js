@@ -2,10 +2,10 @@ const CACHE_NAME = 'game-of-gifts-v7-menu-remediation';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=menu-fix1',
-  './game.js?v=menu-fix1',
+  './styles.css?v=menu-fix2',
+  './game.js?v=menu-fix2',
   './manifest.json',
-  './tutorial.js?v=menu-fix1',
+  './tutorial.js?v=menu-fix2',
   './assets/ui/splash-poster-v2.webp',
   './assets/ui/menu-game-v2.webp',
   './assets/ui/menu-tutorial-v2.webp',
