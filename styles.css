@@ -321,14 +321,9 @@ html,body{background:#160e09}
 /* First Battle: guidance stays in document flow, below the board. */
 /* Equal, adjacent entry points with readable labels instead of baked-in artwork. */
 .splash-actions{position:absolute;left:max(16px,env(safe-area-inset-left));right:max(16px,env(safe-area-inset-right));bottom:max(24px,calc(env(safe-area-inset-bottom) + 12px));display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(12px,4vw,28px);max-width:440px;margin:0 auto;align-items:center}
-.menu-action{width:min(42vw,190px);aspect-ratio:1;justify-self:center;min-width:0;padding:14px 8px;position:relative;isolation:isolate;overflow:hidden;border:3px solid #f3cb7d;border-radius:50%;color:#ffd978;background-color:#171634;background-position:center;background-size:cover;box-shadow:inset 0 0 0 4px #73512b,inset 0 0 0 7px #c99a54,inset 0 0 24px #fff4,0 6px 0 #60401e,0 10px 24px #000c;font-family:Georgia,serif;font-size:clamp(22px,6vw,34px);font-weight:900;cursor:pointer;touch-action:manipulation}
-.menu-action::before{content:"";position:absolute;z-index:-1;inset:18%;border-radius:50%;box-shadow:0 0 35px 16px #082ba8aa;background:#082b9eee}
-.menu-action span{position:relative;z-index:1;display:block;line-height:1.05;background:linear-gradient(#fff3a6 0%,#ffd044 42%,#e88d16 68%,#fff0a0 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:1px #713b0b;text-shadow:0 3px 0 #6a3108,0 0 8px #fff3,0 5px 10px #000d;filter:drop-shadow(0 1px 0 #fff6)}
-.menu-game{background-image:url(assets/ui/menu-medallion.jpg)}
-.menu-training{background-image:url(assets/ui/menu-medallion.jpg)}
-.menu-training::before{background:#087144ee;box-shadow:0 0 35px 16px #087144aa}
-.menu-training span{font-size:clamp(17px,4.4vw,27px);letter-spacing:-.04em}
-.menu-action:active{transform:translateY(3px);box-shadow:inset 0 0 0 3px #73512b,0 2px 0 #60401e}
+.menu-action{width:min(42vw,190px);aspect-ratio:1;justify-self:center;min-width:0;margin:0;padding:0;border:0;border-radius:50%;background:none;box-shadow:none;cursor:pointer;touch-action:manipulation;filter:drop-shadow(0 5px 9px #000a)}
+.menu-action img{display:block;width:100%;height:auto;pointer-events:none}
+.menu-action:active{transform:scale(.96)}
 .menu-action:focus-visible{outline:3px solid #fff;outline-offset:5px}
 .menu-recommendation{grid-column:1/-1;text-align:center;color:#ffe4bc;font-size:12px;line-height:1.4;text-shadow:0 2px 3px #000;background:#100c10cc;padding:6px;border-radius:8px}
 @media(orientation:landscape) and (max-height:600px){.splash-actions{max-width:360px;gap:8px;bottom:max(16px,calc(env(safe-area-inset-bottom) + 8px))}.menu-action{width:min(24vh,132px);padding:10px;font-size:22px}}
