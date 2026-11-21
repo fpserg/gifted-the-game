@@ -100,5 +100,19 @@ const run=code=>vm.runInContext(code,context);
  const sw=fs.readFileSync('service-worker.js','utf8');
  assert.match(sw,/return caches\.match\(request\)\.then\(cached=>cached\|\|response\)/);
  assert.match(sw,/if\(response\.ok\)/);
+ // Exercise service worker fetch behavior, not just inspect its source.
+ const handlers={};let cachedResponse={ok:true,source:'cache'},outcome={ok:false,status:503};
+ const swSelf={location:{origin:'https://example.test'},registration:{scope:'https://example.test/gifted-the-game/'},addEventListener:(name,fn)=>{handlers[name]=fn;}};
+ const swContext={self:swSelf,URL,Array,Promise,
+  caches:{match:async()=>cachedResponse,open:async()=>({put:async()=>{}})},
+  fetch:async()=>outcome};
+ vm.createContext(swContext);vm.runInContext(sw,swContext);
+ const request={method:'GET',mode:'no-cors',url:'https://example.test/gifted-the-game/assets/ui/menu-game-v2.webp'};
+ const fetchAsset=async()=>{let response;handlers.fetch({request,respondWith:p=>{response=p;}});return response;};
+ assert.strictEqual(await fetchAsset(),cachedResponse,'503 must use cached medallion');
+ cachedResponse=undefined;
+ assert.strictEqual(await fetchAsset(),outcome,'503 without cache remains image error for text fallback');
+ cachedResponse={ok:true,source:'cache'};outcome={ok:true,source:'network',clone(){return this;}};
+ assert.strictEqual(await fetchAsset(),outcome,'successful HTTP response takes precedence');
  console.log('PASS: medallions, fallback, navigation, stale results, tutorial, 3 complete games, SW HTTP fallback');
 })().catch(error=>{console.error(error);process.exitCode=1;});
