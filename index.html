@@ -12,11 +12,11 @@
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
 <title>Game of Gifts</title>
-<link rel="stylesheet" href="styles.css?v=first-battle3">
+<link rel="stylesheet" href="styles.css?v=menu-fix1">
 </head>
 <body>
 <div id="app">
-  <div class="bar"><div class="who" id="eWho"></div><div style="display:flex;gap:6px;align-items:center"><button class="lbtn" id="libBtn">Карты</button><button class="lbtn" id="helpBtn" aria-label="Обучение">?</button><div id="turn"></div></div></div>
+  <div class="bar"><div class="who" id="eWho"></div><div style="display:flex;gap:6px;align-items:center"><button class="lbtn" id="menuBtn" type="button" hidden>Меню</button><button class="lbtn" id="libBtn">Карты</button><button class="lbtn" id="helpBtn" aria-label="Обучение">?</button><div id="turn"></div></div></div>
   <div id="opponentReserve" class="reserve"></div>
   <div id="board"></div>
   <div id="log" aria-live="polite"></div>
@@ -27,8 +27,8 @@
   <div id="hand"></div>
 </div>
 <div id="ov"><div class="box" id="ovbox"></div></div>
-<script src="tutorial.js?v=first-battle3" defer></script>
-<script src="game.js?v=first-battle3" defer></script>
+<script src="tutorial.js?v=menu-fix1" defer></script>
+<script src="game.js?v=menu-fix1" defer></script>
 <script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(() => {}));</script>
 </body>
 </html>
