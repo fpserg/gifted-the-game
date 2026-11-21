@@ -1,8 +1,8 @@
-const CACHE_NAME = 'game-of-gifts-v8-approved-medallions';
+const CACHE_NAME = 'game-of-gifts-v9-tutorial-ring';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=approved-medallions-1',
+  './styles.css?v=tutorial-ring-fix1',
   './game.js?v=approved-medallions-1',
   './manifest.json',
   './tutorial.js?v=approved-medallions-1',
