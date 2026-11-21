@@ -450,8 +450,8 @@ function splashScreen(){
  openOv(`<section class="splash splash-poster" aria-label="Постер Game of Gifts">
  <img class="splash-poster-art" src="assets/ui/splash-poster-v2.webp" alt="Инженер заносит карту, Астромантка сидит за столом с колодой, Хранитель закрывает лицо веером карт">
  <nav class="splash-actions" aria-label="Главное меню">
- <button class="menu-action" id="splashPlay" type="button" aria-label="Игра"><span class="menu-action-fallback">ИГРА</span><img src="assets/ui/menu-game-v2.webp" alt="" width="1254" height="1254"></button>
- <button class="menu-action" id="firstBattle" type="button" aria-label="Обучение"><span class="menu-action-fallback">ОБУЧЕНИЕ</span><img src="assets/ui/menu-tutorial-v2.webp" alt="" width="1254" height="1254"></button>
+ <button class="menu-action" id="splashPlay" type="button" aria-label="Игра"><span class="menu-action-fallback">ИГРА</span><img src="assets/ui/menu-game-v2.webp?v=approved-medallions-1" alt="" width="1254" height="1254"></button>
+ <button class="menu-action" id="firstBattle" type="button" aria-label="Обучение"><span class="menu-action-fallback">ОБУЧЕНИЕ</span><img src="assets/ui/menu-tutorial-v2.webp?v=approved-medallions-1" alt="" width="1254" height="1254"></button>
  ${Tutorial.completed()?'':'<small class="menu-recommendation">Впервые здесь? Начни с обучения «Первая битва»</small>'}
  </nav>
  </section>`);
