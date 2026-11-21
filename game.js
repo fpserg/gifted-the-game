@@ -300,9 +300,10 @@ function finish(){
   const t=res==='p'?'Победа! 🏆':res==='e'?'Поражение':'Ничья';
   openOv(`<h2>${t}</h2><p>Локации: ты ${w.p} — враг ${w.e}${w.p===w.e?' (решила общая сила)':''}</p>
   <div class="res">${lanes.map(x=>`<div>${x.L.icon} ${x.L.name}<b style="color:${x.w==='p'?'var(--good)':x.w==='e'?'var(--bad)':'var(--mut)'}">${x.p} : ${x.e}</b></div>`).join('')}</div>
-  <div class="row"><button class="btn" id="again">Ещё партию</button><button class="btn sec" id="pick">Сменить героя</button></div>`);
+  <div class="row"><button class="btn" id="again">Ещё партию</button><button class="btn sec" id="pick">Сменить героя</button><button class="btn sec" id="resultHome">Главное меню</button></div>`);
   document.getElementById('again').onclick=()=>{closeOv();newGame(G.fac.p);};
   document.getElementById('pick').onclick=()=>heroPick();
+  document.getElementById('resultHome').onclick=()=>{G=null;tutorialActive=false;splashScreen();};
  },700);
 }
 
@@ -331,6 +332,8 @@ function tableReserves(){
 }
 function render(){
  if(!HAS_DOM||!G)return;
+ $('menuBtn').hidden=gameMode!=='normal';
+ $('menuBtn').disabled=G.phase==='reveal';
  const PF=FACTIONS[G.fac.p],EF=FACTIONS[G.fac.e];
  $('opponentReserve').innerHTML=tableReserves();
  $('playerDeck').innerHTML=tableDeck('p');
@@ -384,6 +387,7 @@ if(HAS_DOM){
  });
  $('info').addEventListener('click',e=>{if(!astroChoice)return;const skip=e.target.closest('.astro-skip');if(skip&&astroChoice.optional){finishAstroChoice(null);return;}const option=e.target.closest('.astro-inline-option');if(option&&astroChoice.kind==='list-card'){const card=astroChoice.cards[+option.dataset.i];if(card)finishAstroChoice(card);}});
  $('end').onclick=()=>{tutorialEvent('end');G.info=null;endTurn();};
+ $('menuBtn').onclick=()=>{if(!G||gameMode!=='normal'||G.phase==='reveal')return;openOv('<h2>Выйти в главное меню?</h2><p>Текущая партия будет прервана.</p><div class="row"><button class="btn" id="confirmGameHome">Выйти в меню</button><button class="btn sec" id="cancelGameHome">Продолжить игру</button></div>');$('confirmGameHome').onclick=()=>{G=null;tutorialActive=false;tutorialStep=0;logLines=[];splashScreen();};$('cancelGameHome').onclick=closeOv;};
  $('helpBtn').onclick=()=>{tutorialActive=true;tutorialStep=G&&G.board.some(l=>l.some(c=>c.owner==='p'&&c.pending))?2:0;render();};
  $('hand').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('.hc')){e.preventDefault();e.target.closest('.hc').click();}});
  $('libBtn').onclick=()=>library(G?G.fac.p:'eng','game');
@@ -439,24 +443,26 @@ function splashScreen(){
  openOv(`<section class="splash splash-poster" aria-label="Постер Game of Gifts">
  <img class="splash-poster-art" src="assets/ui/splash-poster-v2.webp" alt="Инженер заносит карту, Астромантка сидит за столом с колодой, Хранитель закрывает лицо веером карт">
  <nav class="splash-actions" aria-label="Главное меню">
- <button class="menu-action" id="splashPlay" aria-label="Игра"><img src="assets/ui/menu-game-v2.webp" alt="" width="1254" height="1254"></button>
- <button class="menu-action" id="firstBattle" aria-label="Обучение"><img src="assets/ui/menu-tutorial-v2.webp" alt="" width="1254" height="1254"></button>
+ <button class="menu-action" id="splashPlay" type="button" aria-label="Игра"><span class="menu-action-fallback">ИГРА</span><img src="assets/ui/menu-game-v2.webp" alt="" width="1254" height="1254"></button>
+ <button class="menu-action" id="firstBattle" type="button" aria-label="Обучение"><span class="menu-action-fallback">ОБУЧЕНИЕ</span><img src="assets/ui/menu-tutorial-v2.webp" alt="" width="1254" height="1254"></button>
  ${Tutorial.completed()?'':'<small class="menu-recommendation">Впервые здесь? Начни с обучения «Первая битва»</small>'}
  </nav>
  </section>`);
  $('ovbox').classList.add('splash-box');
  $('ov').classList.add('splash-overlay');
+ document.querySelectorAll('.menu-action img').forEach(img=>{const btn=img.closest('.menu-action');const check=()=>btn.classList.toggle('art-loaded',img.complete&&img.naturalWidth>0);img.addEventListener('load',check);img.addEventListener('error',check);check();});
  $('splashPlay').onclick=heroPick;
  $('firstBattle').onclick=()=>Tutorial.intro();
 }
 function heroPick(){
  openOv(`<div class="pick-heading"><small>GAME OF GIFTS</small><h2>Выбери своего героя</h2><p>Три стиля игры. Шесть ходов. Одна победа.</p></div>
  <div class="heroes">${Object.entries(FACTIONS).map(([k,F])=>`<button class="hero hero-card" data-f="${k}" aria-pressed="${k===pickedHero}" style="--hero-color:${F.color}"><img src="${IMG[AV[k]]}" alt=""><div class="hero-copy"><small>${k==='eng'?'СОЗИДАНИЕ':k==='ast'?'ЗВЁЗДНАЯ МАГИЯ':'ТЕНЕВОЙ КОНТРОЛЬ'}</small><b>${F.name}</b><span>${F.desc}</span><em>${k===pickedHero?'Выбран':'Выбрать'}</em></div></button>`).join('')}</div>
- <div class="pick-actions"><button class="btn" id="startMatch">В бой · ${FACTIONS[pickedHero].name}</button><button class="btn sec" id="pickLib">Все карты</button></div><p class="pick-rule">Выиграй большинство локаций. При равенстве решает общая сила.</p>`);
+ <div class="pick-actions"><button class="btn" id="startMatch">В бой · ${FACTIONS[pickedHero].name}</button><button class="btn sec" id="pickLib">Все карты</button><button class="btn sec" id="pickHome">Главное меню</button></div><p class="pick-rule">Выиграй большинство локаций. При равенстве решает общая сила.</p>`);
  $('ovbox').classList.add('hero-box');
  document.querySelectorAll('.hero').forEach(b=>b.onclick=()=>{pickedHero=b.dataset.f;heroPick();});
  $('startMatch').onclick=()=>startMatch(false);
  $('pickLib').onclick=()=>library(pickedHero,'pick');
+ $('pickHome').onclick=()=>{G=null;splashScreen();};
 }
 // An upward drag plays a hand card; horizontal swipes remain native hand scrolling.
 function installGestures(){
