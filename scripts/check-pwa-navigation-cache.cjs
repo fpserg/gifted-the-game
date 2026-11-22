@@ -8,6 +8,7 @@ const vm = require('node:vm');
 const source = fs.readFileSync('service-worker.js', 'utf8');
 const SCOPE = 'https://example.test/gifted-the-game/';
 const INDEX = './index.html';
+const shell = label => '<!doctype html><div id="app"></div><script src="tutorial.js"></script><script src="game.js"></script>' + label;
 const cacheName = source.match(/const CACHE_NAME = '([^']+)'/)?.[1];
 assert.equal(cacheName, 'game-of-gifts-v10-nav-cache-guard');
 
@@ -19,6 +20,7 @@ class Response {
     this.headers = { get: name => name.toLowerCase() === 'content-type' ? contentType : null };
   }
   clone() { return new Response(this.body, { status: this.status, contentType: this.headers.get('content-type') }); }
+  async text() { return this.body; }
   static error() { return new Response('', { status: 0, contentType: null }); }
 }
 class Request {
@@ -28,7 +30,7 @@ class Request {
     this.method = 'GET';
   }
 }
-function harness({ online = new Response('NEW INDEX'), oldCaches = {} } = {}) {
+function harness({ online = new Response(shell('NEW INDEX')), oldCaches = {} } = {}) {
   const listeners = {}, data = new Map(), calls = [];
   let fetchValue = online;
   for (const [name, values] of Object.entries(oldCaches)) {
@@ -42,7 +44,7 @@ function harness({ online = new Response('NEW INDEX'), oldCaches = {} } = {}) {
       async match(key) { return map.get(typeof key === 'string' ? key : key.url); },
       async addAll(paths) {
         for (const path of paths) {
-          map.set(path, path === INDEX ? new Response('NEW INSTALL SHELL') : new Response('ASSET', { contentType: 'image/webp' }));
+          map.set(path, path === INDEX ? new Response(shell('NEW INSTALL SHELL')) : new Response('ASSET', { contentType: 'image/webp' }));
         }
       }
     };
@@ -103,14 +105,14 @@ function harness({ online = new Response('NEW INDEX'), oldCaches = {} } = {}) {
     checks++;
     console.log('PASS ' + id);
   };
-  const valid = () => new Response('VALID OFFLINE SHELL');
+  const valid = () => new Response(shell('VALID OFFLINE SHELL'));
 
   await test('T1 HTTP 200 caches successful entry HTML and returns network', async () => {
-    const h = harness({ online: new Response('FRESH SHELL') });
+    const h = harness({ online: new Response(shell('FRESH SHELL')) });
     const response = await h.navigate('');
     assert.equal(response.status, 200);
-    assert.equal(response.body, 'FRESH SHELL');
-    assert.equal(h.cached().body, 'FRESH SHELL');
+    assert.equal(response.body, shell('FRESH SHELL'));
+    assert.equal(h.cached().body, shell('FRESH SHELL'));
   });
   for (const status of [503, 404]) {
     await test(status === 503 ? 'T2 HTTP 503 preserves fallback' : 'T3 HTTP 404 preserves fallback', async () => {
@@ -118,8 +120,8 @@ function harness({ online = new Response('NEW INDEX'), oldCaches = {} } = {}) {
       await h.seed(cacheName, INDEX, valid());
       const response = await h.navigate('index.html');
       assert.equal(response.status, 200);
-      assert.equal(response.body, 'VALID OFFLINE SHELL');
-      assert.equal(h.cached().body, 'VALID OFFLINE SHELL');
+      assert.equal(response.body, shell('VALID OFFLINE SHELL'));
+      assert.equal(h.cached().body, shell('VALID OFFLINE SHELL'));
     });
   }
   await test('T4 network exception uses cached valid HTML', async () => {
@@ -127,7 +129,7 @@ function harness({ online = new Response('NEW INDEX'), oldCaches = {} } = {}) {
     await h.seed(cacheName, INDEX, valid());
     const response = await h.navigate('');
     assert.equal(response.status, 200);
-    assert.equal(response.body, 'VALID OFFLINE SHELL');
+    assert.equal(response.body, shell('VALID OFFLINE SHELL'));
   });
   await test('T5 no cache returns HTTP failure or Response.error without poisoning', async () => {
     const h = harness({ online: new Response('NO SERVICE', { status: 503 }) });
@@ -144,17 +146,17 @@ function harness({ online = new Response('NEW INDEX'), oldCaches = {} } = {}) {
     await h.navigate('');
     h.setNetwork(new Error('offline'));
     const response = await h.navigate('');
-    assert.equal(response.body, 'VALID OFFLINE SHELL');
-    assert.equal(h.cached().body, 'VALID OFFLINE SHELL');
+    assert.equal(response.body, shell('VALID OFFLINE SHELL'));
+    assert.equal(h.cached().body, shell('VALID OFFLINE SHELL'));
   });
   await test('T7 new cache install and activation discard poisoned v9', async () => {
     const oldName = 'game-of-gifts-v9-tutorial-ring';
     const h = harness({ oldCaches: { [oldName]: { [INDEX]: new Response('OLD 200 ERROR PAGE') } }, online: new Error('offline') });
     await h.install();
-    assert.equal(h.cached(cacheName).body, 'NEW INSTALL SHELL');
+    assert.equal(h.cached(cacheName).body, shell('NEW INSTALL SHELL'));
     await h.activate();
     assert.equal(h.data.has(oldName), false);
-    assert.equal((await h.navigate('')).body, 'NEW INSTALL SHELL');
+    assert.equal((await h.navigate('')).body, shell('NEW INSTALL SHELL'));
   });
   await test('T8 ordinary non-navigation assets retain cache-first behavior', async () => {
     const h = harness({ online: new Response('NETWORK CSS', { contentType: 'text/css' }) });
@@ -169,10 +171,10 @@ function harness({ online = new Response('NEW INDEX'), oldCaches = {} } = {}) {
     await h.seed(cacheName, INDEX, valid());
     const response = await h.navigate('unrelated.html');
     assert.equal(response.body, 'OTHER HTML');
-    assert.equal(h.cached().body, 'VALID OFFLINE SHELL');
+    assert.equal(h.cached().body, shell('VALID OFFLINE SHELL'));
     h.setNetwork(new Response('404', { status: 404 }));
     assert.equal((await h.navigate('unrelated.html')).status, 404);
-    assert.equal(h.cached().body, 'VALID OFFLINE SHELL');
+    assert.equal(h.cached().body, shell('VALID OFFLINE SHELL'));
   });
   await test('T10 reject cached 200 non-HTML and network 200 non-HTML for entry', async () => {
     const h = harness({ online: new Response('TEXT', { contentType: 'text/plain' }) });
@@ -189,6 +191,18 @@ function harness({ online = new Response('NEW INDEX'), oldCaches = {} } = {}) {
     const response = await h.asset('assets/ui/menu-game-v2.webp');
     assert.equal(response.body, 'CACHED MEDALLION');
     assert.deepEqual(JSON.parse(JSON.stringify(h.calls[0].options)), { cache: 'reload' });
+  });
+  await test('T12 reject HTTP 200 HTML error bodies, including poisoned cache', async () => {
+    const h = harness({ online: new Response('200 ERROR PAGE') });
+    await h.seed(cacheName, INDEX, new Response('POISONED 200 HTML'));
+    assert.equal((await h.navigate('')).body, '200 ERROR PAGE');
+    assert.equal(h.cached().body, 'POISONED 200 HTML');
+    h.setNetwork(new Error('offline'));
+    assert.equal((await h.navigate('')).status, 0, 'do not serve a 200 HTML error as app');
+    // Once the real application responds, cache heals.
+    h.setNetwork(new Response(shell('RECOVERED')));
+    assert.equal((await h.navigate('')).body, shell('RECOVERED'));
+    assert.equal(h.cached().body, shell('RECOVERED'));
   });
   console.log('PASS: ' + checks + ' PWA navigation/cache regression cases');
 })().catch(error => { console.error(error); process.exitCode = 1; });
