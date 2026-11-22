@@ -21,8 +21,38 @@ const APP_SHELL = [
   ...['arena','fog','forge','library','observatory','tower','treasury','waste','well'].map(name => `./assets/locations/loc_${name}.webp`)
 ];
 
+// Shared validation for both navigation fallback and the exact entries installed offline.
+const isHtml = response => response.ok && response.headers.get('content-type')?.toLowerCase().includes('text/html');
+// A 200 HTML response may still be a captive portal or a branded error page.
+// Validate the small application entry against its actual, stable markup.
+const isAppShell = async response => {
+  if (!response || !isHtml(response)) return false;
+  try {
+    const html = await response.clone().text();
+    return html.includes('id="app"') && html.includes('tutorial.js') && html.includes('game.js');
+  } catch { return false; }
+};
+
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil((async () => {
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.addAll(APP_SHELL);
+      // Validate the *stored* responses: never fetch a second copy after validation.
+      // Both entry URLs must be good before skipWaiting can replace the active worker.
+      for (const entry of ['./', './index.html']) {
+        if (!await isAppShell(await cache.match(entry))) {
+          throw new Error('Invalid application shell during PWA install: ' + entry);
+        }
+      }
+      await self.skipWaiting();
+    } catch (error) {
+      // A rejected install preserves the old active worker and its independent cache.
+      // Remove any partially installed new cache so it cannot be reused as a valid v10.
+      try { await caches.delete(CACHE_NAME); } catch {}
+      throw error;
+    }
+  })());
 });
 
 self.addEventListener('activate', event => {
@@ -38,16 +68,6 @@ self.addEventListener('fetch', event => {
   if (request.mode === 'navigate') {
     const scopePath = new URL(self.registration.scope).pathname;
     const isEntry = url.pathname === scopePath || url.pathname === scopePath + 'index.html';
-    const isHtml = response => response.ok && response.headers.get('content-type')?.toLowerCase().includes('text/html');
-    // A 200 HTML response may still be a captive portal or a branded error page.
-    // Validate the small application entry against its actual, stable markup.
-    const isAppShell = async response => {
-      if (!isHtml(response)) return false;
-      try {
-        const html = await response.clone().text();
-        return html.includes('id="app"') && html.includes('tutorial.js') && html.includes('game.js');
-      } catch { return false; }
-    };
     const cachedEntry = async () => {
       const cached = await caches.match('./index.html', { cacheName: CACHE_NAME });
       return cached && await isAppShell(cached) ? cached : null;
