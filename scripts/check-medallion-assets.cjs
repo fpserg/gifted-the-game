@@ -57,7 +57,7 @@ assert(game.includes("$('menuBtn').disabled=G.phase!=='plan'"));
 const handlers={};
 let networkResponse={ok:false,status:503},cachedResponse={ok:true,source:'cache'};
 const scope='https://example.test/gifted-the-game/';
-const menuUrl=game.match(/<button class="menu-action" id="splashPlay"[^>]*>[\\s\\S]*?<img src="([^"]+)"/)[1];
+const menuUrl=game.match(/<button class="menu-action" id="splashPlay"[^>]*>[\s\S]*?<img src="([^"]+)"/)[1];
 const swSelf={location:{origin:'https://example.test'},registration:{scope},addEventListener:(type,fn)=>handlers[type]=fn};
 const caches={match:async()=>cachedResponse,open:async()=>({put:async()=>{}})};
 vm.runInNewContext(sw,{self:swSelf,caches,fetch:async()=>networkResponse,URL});
