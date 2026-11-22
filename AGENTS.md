@@ -17,8 +17,8 @@
 - Report test commands and actual PASS/FAIL/NOT RUN results. Never describe V8 harness execution as a direct Node run or claim Safari testing without using Safari.
 - Do not weaken tests by removing material assertions. When changing tests, explain retained and added coverage.
 - Keep changes focused. Do not include unrelated edits or generated secrets.
-- Infrastructure files (`.github/workflows/**`, `.github/CODEOWNERS`, `AGENTS.md`, and autonomy-policy docs) require Product Owner review and must never be auto-merged.
-- A Builder cannot approve its own work. Merge only when the applicable policy, independent review, current-SHA checks, and repository protections all permit it.
+- Infrastructure files (`.github/workflows/**`, `.github/CODEOWNERS`, `.github/copilot-instructions.md`, `AGENTS.md`, and autonomy-policy docs) require explicit Product Owner approval and human review; they must never be auto-merged.
+- A Builder cannot approve its own work. A separate automated Inspector may count for Level 0 only under the strict independence, current-SHA, GitHub-recorded approval, and fail-closed conditions in `docs/ORCHESTRATOR_POLICY.md`. It cannot review or approve protected infrastructure, Level 1, or Level 2 work.
 - Do not merge Level 1/2 work or make product decisions on behalf of the Architect/Product Owner.
 
 ## Report format
