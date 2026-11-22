@@ -12,7 +12,7 @@ const signature='function newGame(pf,scenario=null){';
 const opponentChoice='const ef=scenario?scenario.opponentFaction:rndOf(Object.keys(FACTIONS).filter(f=>f!==pf));';
 assert.equal(original.split(signature).length-1,1,'Unexpected newGame signature');
 assert.equal(original.split(opponentChoice).length-1,1,'Unexpected opponent selection');
-const patchedOpponent='const ef=__balanceOpponent===null?(scenario?scenario.opponentFaction:rndOf(Object.keys(FACTIONS).filter(f=>f!==pf)):__balanceOpponent;';
+const patchedOpponent='const ef=__balanceOpponent===null?(scenario?scenario.opponentFaction:rndOf(Object.keys(FACTIONS).filter(f=>f!==pf))):__balanceOpponent;';
 const source=original.replace(opponentChoice,patchedOpponent);
 assert(source.includes(signature)&&source.includes(patchedOpponent),'Simulation patch not applied');
 assert.equal(source.length-original.length,patchedOpponent.length-opponentChoice.length,'Unexpected source patch size');
