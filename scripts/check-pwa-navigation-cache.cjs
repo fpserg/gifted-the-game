@@ -30,21 +30,31 @@ class Request {
     this.method = 'GET';
   }
 }
+// Cache keys use fully resolved Request URLs, as in CacheStorage.
+function keyOf(request) {
+  return new URL(typeof request === 'string' ? request : request.url, SCOPE).href;
+}
 function harness({ online = new Response(shell('NEW INDEX')), oldCaches = {} } = {}) {
   const listeners = {}, data = new Map(), calls = [];
+  const lifecycle = { installed: false, activated: false, skipWaiting: 0, claims: 0 };
   let fetchValue = online;
   for (const [name, values] of Object.entries(oldCaches)) {
-    data.set(name, new Map(Object.entries(values)));
+    data.set(name, new Map(Object.entries(values).map(([key, response]) => [keyOf(key), response.clone()])));
   }
   const store = name => {
     if (!data.has(name)) data.set(name, new Map());
     const map = data.get(name);
     return {
-      async put(key, value) { map.set(typeof key === 'string' ? key : key.url, value.clone()); },
-      async match(key) { return map.get(typeof key === 'string' ? key : key.url); },
+      async put(key, value) { map.set(keyOf(key), value.clone()); },
+      async match(key) { return map.get(keyOf(key))?.clone(); },
+      // Unlike the old fake addAll, fetch every resource from the simulated network.
+      // Sequential writes deliberately model a partial install in the worst case:
+      // rejecting installation must clean it even if an implementation wrote early.
       async addAll(paths) {
         for (const path of paths) {
-          map.set(path, path === INDEX ? new Response(shell('NEW INSTALL SHELL')) : new Response('ASSET', { contentType: 'image/webp' }));
+          const response = await fetch(new Request(path, 'same-origin'));
+          if (!response.ok) throw new TypeError('Cache.addAll failed: ' + path);
+          await this.put(path, response);
         }
       }
     };
@@ -54,7 +64,7 @@ function harness({ online = new Response(shell('NEW INDEX')), oldCaches = {} } =
     match: async (key, options = {}) => {
       const names = options.cacheName ? [options.cacheName] : [...data.keys()];
       for (const name of names) {
-        const value = data.get(name)?.get(typeof key === 'string' ? key : key.url);
+        const value = data.get(name)?.get(keyOf(key));
         if (value) return value.clone();
       }
     },
@@ -65,13 +75,14 @@ function harness({ online = new Response(shell('NEW INDEX')), oldCaches = {} } =
     location: { origin: 'https://example.test' },
     registration: { scope: SCOPE },
     addEventListener: (type, listener) => listeners[type] = listener,
-    skipWaiting: async () => {},
-    clients: { claim: async () => {} }
+    skipWaiting: async () => { lifecycle.skipWaiting++; },
+    clients: { claim: async () => { lifecycle.claims++; } }
   };
   const fetch = async (request, options) => {
     calls.push({ url: request.url, options });
-    if (fetchValue instanceof Error) throw fetchValue;
-    return fetchValue.clone();
+    const response = typeof fetchValue === 'function' ? await fetchValue(request, options) : fetchValue;
+    if (response instanceof Error) throw response;
+    return response.clone();
   };
   vm.runInNewContext(source, { self, caches, fetch, URL, Response, Request, Promise, Array });
   async function fire(type, request) {
@@ -87,14 +98,34 @@ function harness({ online = new Response(shell('NEW INDEX')), oldCaches = {} } =
     return response;
   }
   return {
-    caches, calls, data,
+    caches, calls, data, lifecycle,
     setNetwork: value => { fetchValue = value; },
     fire, navigate: (path = '') => fire('fetch', new Request(path)),
     asset: path => fire('fetch', new Request(path, 'no-cors')),
-    cached: (name = cacheName, key = INDEX) => data.get(name)?.get(key),
+    cached: (name = cacheName, key = INDEX) => data.get(name)?.get(keyOf(key)),
     seed: (name, key, value) => store(name).put(key, value),
-    install: () => fire('install'),
-    activate: () => fire('activate')
+    async install() {
+      try { await fire('install'); lifecycle.installed = true; }
+      catch (error) { lifecycle.installed = false; throw error; }
+    },
+    async activate() {
+      // Browser lifecycle: failed install cannot promote the new worker.
+      if (!lifecycle.installed) throw new Error('Cannot activate rejected worker');
+      await fire('activate'); lifecycle.activated = true;
+    }
+  };
+}
+
+// Network responses for installation: both entries are genuine application HTML,
+// other URLs receive resource content. No cache entry is supplied by the test harness.
+function installResponse(overrides = {}) {
+  return request => {
+    const path = new URL(request.url).pathname.slice(new URL(SCOPE).pathname.length);
+    const key = path === '' ? './' : './' + path;
+    if (Object.hasOwn(overrides, key)) return overrides[key];
+    return key === './' || key === INDEX
+      ? new Response(shell('NEW INSTALL SHELL'))
+      : new Response('ASSET', { contentType: 'application/octet-stream' });
   };
 }
 
@@ -151,11 +182,13 @@ function harness({ online = new Response(shell('NEW INDEX')), oldCaches = {} } =
   });
   await test('T7 new cache install and activation discard poisoned v9', async () => {
     const oldName = 'game-of-gifts-v9-tutorial-ring';
-    const h = harness({ oldCaches: { [oldName]: { [INDEX]: new Response('OLD 200 ERROR PAGE') } }, online: new Error('offline') });
+    const h = harness({ oldCaches: { [oldName]: { [INDEX]: new Response('OLD 200 ERROR PAGE') } }, online: installResponse() });
     await h.install();
     assert.equal(h.cached(cacheName).body, shell('NEW INSTALL SHELL'));
+    assert.equal(h.cached(cacheName, './').body, shell('NEW INSTALL SHELL'));
     await h.activate();
     assert.equal(h.data.has(oldName), false);
+    h.setNetwork(new Error('offline'));
     assert.equal((await h.navigate('')).body, shell('NEW INSTALL SHELL'));
   });
   await test('T8 ordinary non-navigation assets retain cache-first behavior', async () => {
