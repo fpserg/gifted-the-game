@@ -1,0 +1,41 @@
+name: Alpha CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alpha-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    name: alpha-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check JavaScript syntax
+        run: |
+          node --check game.js
+          node --check tutorial.js
+          node --check service-worker.js
+      - name: Check medallion image binaries
+        run: node scripts/check-menu-assets-smoke.cjs
+      - name: Run tutorial and UI regressions
+        run: |
+          node scripts/check-first-battle.cjs
+          node scripts/check-ui.cjs
+          node scripts/check-menu-remediation.cjs
+      - name: Run PWA cache regressions
+        run: node scripts/check-pwa-navigation-cache.cjs
