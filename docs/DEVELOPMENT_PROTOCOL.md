@@ -61,4 +61,45 @@ Repository: https://github.com/fpserg/gifted-the-game
 - Не объявлять выполненными непроверенные изменения или тесты.
 
 ## Текущая задача
+
 На заставке iPhone не видны изображения кнопок «ИГРА» и «ОБУЧЕНИЕ»; в обычном матче отсутствует выход в главное меню. Исправлять с сохранением медальонов и понятными fallback-кнопками при сбое загрузки артов.
+
+---
+
+## Proposed Orchestrator addendum — inactive until approved
+
+This addendum is an installation proposal. It takes effect only after the Product Owner approves the infrastructure PR and separately activates the required repository settings and event automation. Until then, the existing process above remains in force.
+
+### Task lifecycle and evidence
+- Track work in GitHub Issues/PRs with task ID, priority, type, risk level, allowed file scope, acceptance criteria, dependencies, executor, PR, test status, independent verdict, and disposition.
+- Suggested lifecycle: BACKLOG → READY → BUILDING → TESTING → REVIEW → FIXING → APPROVED → MERGED; use BLOCKED, NEEDS_PRODUCT_DECISION, or FAILED when applicable.
+- Before editing, record scope, affected files, risk, and acceptance criteria. After editing, compare the full PR diff with that authorization.
+
+### Risk levels and authority
+- **Level 0:** bounded documentation, typo, test/mock change, or small cosmetic CSS change with verified local visual effect. May auto-merge only when every gate below passes.
+- **Level 1:** changes to game.js; behavior-changing tutorial.js; service-worker.js; material index/navigation/PWA behavior; substantial refactor; new UI; data-storage architecture; or approved art/design. Build, test, and review are permitted, but merge needs explicit Product Owner approval.
+- **Level 2:** card costs/power/abilities, location rules, win conditions, factions, monetization, token rewards/economics, pay-to-win, material public experience, payments, wallets, smart contracts, or transactions. Stop before implementation until Architect and Product Owner decide.
+- **Protected automation infrastructure:** workflows, CODEOWNERS, AGENTS.md, authority/policy documents, branch protection/rulesets, secrets/integrations, app permissions, and automatic merge mechanisms require separate Product Owner approval before merge or activation.
+
+### Level 0 merge gates
+All must pass together:
+1. The actual diff stays inside the approved scope and excludes protected paths.
+2. All required CI checks pass on the exact current HEAD SHA.
+3. A reviewer independent from the Builder explicitly approves that SHA; a conversation comment or self-review is insufficient.
+4. No blocker/major findings, unresolved material review threads, conflicts, or pending product decisions remain.
+5. GitHub branch rules permit merge without bypass.
+6. Prefer squash merge when enabled. Record PR, SHA, checks, reviewer, risk rationale, and merge result.
+
+Approvals do not carry over to a new SHA. If any evidence is missing, leave the PR open and report BLOCKED / INSUFFICIENT EVIDENCE. Permit at most two autonomous correction cycles for one group of findings; then escalate.
+
+### CI and safety
+- Every check is reported as PASS, FAIL, or NOT RUN based on an observed result.
+- Add no required check until it has passed against current main. The proposed initial CI is restricted to checks directly run successfully on main; known-stale scripts stay excluded until repaired.
+- PR workflows use read-only repository permissions, no secrets, and do not run privileged actions on untrusted code.
+- Never push directly to main or bypass branch rules. Stop further autonomous merges after a serious regression; prepare a revert PR and request the Product Owner's decision.
+
+### GitHub event automation
+Once separately approved and connected, a ChatGPT Work event task may subscribe to PR opened, ready-for-review, closed; commit updates, submitted human reviews, and newly created comments can be enabled where supported. General Issue events and synchronize events are not available in the discovered trigger schema. The event is only a wake-up: each run must fetch current PR state and head, inspect actual files, checks, and reviews, and be idempotent on PR + SHA + event. Closed/merged PRs are skipped; self-generated comments do not start another cycle unless PR state, head, or independent review changes. A trigger does not provide review authority or change repository permissions.
+
+### Pause and manual recovery
+The Product Owner can pause/disable the event task and disable GitHub auto-merge. For manual recovery, stop automation; read current main and all open PRs; use Issues/PRs as the ledger; assign Builder and Inspector separately; resume the existing manual review and merge procedure.
