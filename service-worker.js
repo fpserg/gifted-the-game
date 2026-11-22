@@ -1,4 +1,4 @@
-const CACHE_NAME = 'game-of-gifts-v9-tutorial-ring';
+const CACHE_NAME = 'game-of-gifts-v10-nav-cache-guard';
 const APP_SHELL = [
   './',
   './index.html',
@@ -36,11 +36,30 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
 
   if (request.mode === 'navigate') {
+    const scopePath = new URL(self.registration.scope).pathname;
+    const isEntry = url.pathname === scopePath || url.pathname === scopePath + 'index.html';
+    const isHtml = response => response.ok && response.headers.get('content-type')?.toLowerCase().includes('text/html');
+    const cachedEntry = async () => {
+      const cached = await caches.match('./index.html', { cacheName: CACHE_NAME });
+      return cached && isHtml(cached) ? cached : null;
+    };
     event.respondWith(fetch(request).then(response => {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
-      return response;
-    }).catch(() => caches.match('./index.html')));
+      // Only the actual application entry point may replace the offline shell.
+      if (isEntry && isHtml(response)) {
+        event.waitUntil(caches.open(CACHE_NAME)
+          .then(cache => cache.put('./index.html', response.clone()))
+          .catch(() => {}));
+      }
+      if (response.ok || !isEntry) return response;
+      return cachedEntry().then(cached => cached || response);
+    }).catch(async () => {
+      if (isEntry) {
+        const cached = await cachedEntry().catch(() => null);
+        if (cached) return cached;
+      }
+      // A rejected fetch without an offline shell is an ordinary network failure.
+      return Response.error();
+    }));
     return;
   }
 
