@@ -39,13 +39,22 @@ self.addEventListener('fetch', event => {
     const scopePath = new URL(self.registration.scope).pathname;
     const isEntry = url.pathname === scopePath || url.pathname === scopePath + 'index.html';
     const isHtml = response => response.ok && response.headers.get('content-type')?.toLowerCase().includes('text/html');
+    // A 200 HTML response may still be a captive portal or a branded error page.
+    // Validate the small application entry against its actual, stable markup.
+    const isAppShell = async response => {
+      if (!isHtml(response)) return false;
+      try {
+        const html = await response.clone().text();
+        return html.includes('id="app"') && html.includes('tutorial.js') && html.includes('game.js');
+      } catch { return false; }
+    };
     const cachedEntry = async () => {
       const cached = await caches.match('./index.html', { cacheName: CACHE_NAME });
-      return cached && isHtml(cached) ? cached : null;
+      return cached && await isAppShell(cached) ? cached : null;
     };
-    event.respondWith(fetch(request).then(response => {
-      // Only the actual application entry point may replace the offline shell.
-      if (isEntry && isHtml(response)) {
+    event.respondWith(fetch(request).then(async response => {
+      // Only the validated application entry point may replace the offline shell.
+      if (isEntry && await isAppShell(response)) {
         // Clone before handing the original response to the browser.
         const copy = response.clone();
         event.waitUntil(caches.open(CACHE_NAME)
