@@ -35,7 +35,7 @@ function keyOf(request) {
   return new URL(typeof request === 'string' ? request : request.url, SCOPE).href;
 }
 function harness({ online = new Response(shell('NEW INDEX')), oldCaches = {} } = {}) {
-  const listeners = {}, data = new Map(), calls = [];
+  const listeners = {}, data = new Map(), calls = [], operations = [];
   const lifecycle = { installed: false, activated: false, skipWaiting: 0, claims: 0 };
   let fetchValue = online;
   for (const [name, values] of Object.entries(oldCaches)) {
@@ -45,7 +45,7 @@ function harness({ online = new Response(shell('NEW INDEX')), oldCaches = {} } =
     if (!data.has(name)) data.set(name, new Map());
     const map = data.get(name);
     return {
-      async put(key, value) { map.set(keyOf(key), value.clone()); },
+      async put(key, value) { operations.push({ type: 'put', cache: name, key: keyOf(key) }); map.set(keyOf(key), value.clone()); },
       async match(key) { return map.get(keyOf(key))?.clone(); },
       // Unlike the old fake addAll, fetch every resource from the simulated network.
       // Sequential writes deliberately model a partial install in the worst case:
@@ -69,7 +69,7 @@ function harness({ online = new Response(shell('NEW INDEX')), oldCaches = {} } =
       }
     },
     keys: async () => [...data.keys()],
-    delete: async name => data.delete(name)
+    delete: async name => { operations.push({ type: 'delete', cache: name }); return data.delete(name); }
   };
   const self = {
     location: { origin: 'https://example.test' },
@@ -98,7 +98,7 @@ function harness({ online = new Response(shell('NEW INDEX')), oldCaches = {} } =
     return response;
   }
   return {
-    caches, calls, data, lifecycle,
+    caches, calls, data, lifecycle, operations,
     setNetwork: value => { fetchValue = value; },
     fire, navigate: (path = '') => fire('fetch', new Request(path)),
     asset: path => fire('fetch', new Request(path, 'no-cors')),
@@ -236,6 +236,88 @@ function installResponse(overrides = {}) {
     h.setNetwork(new Response(shell('RECOVERED')));
     assert.equal((await h.navigate('')).body, shell('RECOVERED'));
     assert.equal(h.cached().body, shell('RECOVERED'));
+  });
+  const oldName = 'game-of-gifts-v9-tutorial-ring';
+  const withOld = online => harness({
+    online,
+    oldCaches: { [oldName]: { [INDEX]: new Response(shell('PREVIOUS VALID SHELL')) } }
+  });
+  const oldPreserved = h => {
+    assert.equal(h.cached(oldName).body, shell('PREVIOUS VALID SHELL'));
+    assert.equal(h.data.has(cacheName), false, 'new partial cache must be removed');
+    assert.equal(h.lifecycle.skipWaiting, 0, 'skipWaiting must not run');
+    assert.equal(h.lifecycle.installed, false);
+    assert.equal(h.lifecycle.activated, false);
+    assert.equal(h.lifecycle.claims, 0);
+  };
+
+  await test('T13 valid upgrade installs both fetched HTML entries and activates safely', async () => {
+    const h = withOld(installResponse());
+    await h.install();
+    assert.equal(h.lifecycle.installed, true);
+    assert.equal(h.lifecycle.skipWaiting, 1);
+    assert.equal(h.cached(cacheName, './').body, shell('NEW INSTALL SHELL'));
+    assert.equal(h.cached(cacheName, INDEX).body, shell('NEW INSTALL SHELL'));
+    assert.equal(h.calls.filter(x => x.url === new URL('./', SCOPE).href).length, 1, 'root fetched exactly once');
+    assert.equal(h.calls.filter(x => x.url === new URL(INDEX, SCOPE).href).length, 1, 'index fetched exactly once');
+    assert(h.calls.length > 50, 'app resources must be loaded, not directly seeded');
+    assert.equal(h.cached(oldName).body, shell('PREVIOUS VALID SHELL'), 'old cache retained before activation');
+    await h.activate();
+    assert.equal(h.lifecycle.activated, true);
+    assert.equal(h.lifecycle.claims, 1);
+    assert.equal(h.data.has(oldName), false);
+    h.setNetwork(new Error('offline'));
+    assert.equal((await h.navigate('')).body, shell('NEW INSTALL SHELL'));
+  });
+  await test('T14 HTTP 200 error document rejects install, keeps v9 intact', async () => {
+    const h = withOld(installResponse({
+      './': new Response('MAINTENANCE ERROR 200'),
+      [INDEX]: new Response('MAINTENANCE ERROR 200')
+    }));
+    await assert.rejects(h.install(), /Invalid application shell during PWA install/);
+    oldPreserved(h);
+    assert(h.operations.some(x => x.type === 'put' && x.cache === cacheName), 'bad entries really reached temporary cache');
+    assert(h.operations.some(x => x.type === 'delete' && x.cache === cacheName));
+    await assert.rejects(h.activate(), /Cannot activate rejected worker/);
+    assert.equal(h.cached(oldName).body, shell('PREVIOUS VALID SHELL'));
+  });
+  await test('T15 valid index but invalid root rejects installation', async () => {
+    const h = withOld(installResponse({
+      './': new Response('200 TECHNICAL ERROR ROOT'),
+      [INDEX]: new Response(shell('VALID INDEX'))
+    }));
+    await assert.rejects(h.install(), /Invalid application shell during PWA install: \.\//);
+    oldPreserved(h);
+  });
+  await test('T16 valid root but invalid index rejects installation', async () => {
+    const h = withOld(installResponse({
+      './': new Response(shell('VALID ROOT')),
+      [INDEX]: new Response('200 TECHNICAL ERROR INDEX')
+    }));
+    await assert.rejects(h.install(), /Invalid application shell during PWA install: \.\/index\.html/);
+    oldPreserved(h);
+  });
+  await test('T17 partial installation failure deletes v10 without touching v9', async () => {
+    const h = withOld(installResponse({
+      './assets/locations/loc_well.webp': new Response('BAD RESOURCE', { status: 503, contentType: 'image/webp' })
+    }));
+    await assert.rejects(h.install(), /Cache\.addAll failed/);
+    assert(h.operations.filter(x => x.type === 'put' && x.cache === cacheName).length > 10, 'some resources must be written before rejection');
+    assert(h.operations.some(x => x.type === 'delete' && x.cache === cacheName));
+    oldPreserved(h);
+    await assert.rejects(h.activate(), /Cannot activate rejected worker/);
+  });
+  await test('T18 rejected update leaves previous offline app available', async () => {
+    const h = withOld(installResponse({ [INDEX]: new Response('BAD 200 INDEX') }));
+    await assert.rejects(h.install(), /Invalid application shell/);
+    oldPreserved(h);
+    h.setNetwork(new Error('offline'));
+    // Simulate the still-active v9 worker reading *its* untouched cache.
+    // Rejected v10 never receives a fetch event from the browser.
+    const cachedOldShell = await h.caches.match(INDEX, { cacheName: oldName });
+    assert.equal(cachedOldShell.status, 200);
+    assert.equal(cachedOldShell.body, shell('PREVIOUS VALID SHELL'));
+    assert.equal(h.data.has(cacheName), false);
   });
   console.log('PASS: ' + checks + ' PWA navigation/cache regression cases');
 })().catch(error => { console.error(error); process.exitCode = 1; });
