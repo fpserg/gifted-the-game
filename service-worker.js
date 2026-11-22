@@ -1,4 +1,4 @@
-const CACHE_NAME = 'game-of-gifts-v9-tutorial-ring';
+const CACHE_NAME = 'game-of-gifts-v10-nav-cache-guard';
 const APP_SHELL = [
   './',
   './index.html',
@@ -21,8 +21,38 @@ const APP_SHELL = [
   ...['arena','fog','forge','library','observatory','tower','treasury','waste','well'].map(name => `./assets/locations/loc_${name}.webp`)
 ];
 
+// Shared validation for both navigation fallback and the exact entries installed offline.
+const isHtml = response => response.ok && response.headers.get('content-type')?.toLowerCase().includes('text/html');
+// A 200 HTML response may still be a captive portal or a branded error page.
+// Validate the small application entry against its actual, stable markup.
+const isAppShell = async response => {
+  if (!response || !isHtml(response)) return false;
+  try {
+    const html = await response.clone().text();
+    return html.includes('id="app"') && html.includes('tutorial.js') && html.includes('game.js');
+  } catch { return false; }
+};
+
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil((async () => {
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.addAll(APP_SHELL);
+      // Validate the *stored* responses: never fetch a second copy after validation.
+      // Both entry URLs must be good before skipWaiting can replace the active worker.
+      for (const entry of ['./', './index.html']) {
+        if (!await isAppShell(await cache.match(entry))) {
+          throw new Error('Invalid application shell during PWA install: ' + entry);
+        }
+      }
+      await self.skipWaiting();
+    } catch (error) {
+      // A rejected install preserves the old active worker and its independent cache.
+      // Remove any partially installed new cache so it cannot be reused as a valid v10.
+      try { await caches.delete(CACHE_NAME); } catch {}
+      throw error;
+    }
+  })());
 });
 
 self.addEventListener('activate', event => {
@@ -36,11 +66,31 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).then(response => {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
-      return response;
-    }).catch(() => caches.match('./index.html')));
+    const scopePath = new URL(self.registration.scope).pathname;
+    const isEntry = url.pathname === scopePath || url.pathname === scopePath + 'index.html';
+    const cachedEntry = async () => {
+      const cached = await caches.match('./index.html', { cacheName: CACHE_NAME });
+      return cached && await isAppShell(cached) ? cached : null;
+    };
+    event.respondWith(fetch(request).then(async response => {
+      // Only the validated application entry point may replace the offline shell.
+      if (isEntry && await isAppShell(response)) {
+        // Clone before handing the original response to the browser.
+        const copy = response.clone();
+        event.waitUntil(caches.open(CACHE_NAME)
+          .then(cache => cache.put('./index.html', copy))
+          .catch(() => {}));
+      }
+      if (response.ok || !isEntry) return response;
+      return cachedEntry().then(cached => cached || response);
+    }).catch(async () => {
+      if (isEntry) {
+        const cached = await cachedEntry().catch(() => null);
+        if (cached) return cached;
+      }
+      // A rejected fetch without an offline shell is an ordinary network failure.
+      return Response.error();
+    }));
     return;
   }
 
