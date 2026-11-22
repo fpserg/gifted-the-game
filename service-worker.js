@@ -46,8 +46,10 @@ self.addEventListener('fetch', event => {
     event.respondWith(fetch(request).then(response => {
       // Only the actual application entry point may replace the offline shell.
       if (isEntry && isHtml(response)) {
+        // Clone before handing the original response to the browser.
+        const copy = response.clone();
         event.waitUntil(caches.open(CACHE_NAME)
-          .then(cache => cache.put('./index.html', response.clone()))
+          .then(cache => cache.put('./index.html', copy))
           .catch(() => {}));
       }
       if (response.ok || !isEntry) return response;
