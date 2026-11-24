@@ -8,15 +8,17 @@ const fs=require('fs'),vm=require('vm'),crypto=require('crypto'),{fork}=require(
 const FACS=['eng','ast','kee'];
 const CONFIGS=[];for(const t of FACS)for(const n of FACS)for(const seat of ['p','e'])CONFIGS.push({t,n,seat});
 async function playConfig(src,cfg,index,count,seed){
- const out={...cfg,games:0,wins:0,losses:0,draws:0,times:[],maxPlans:0,truncated:0};
+ const out={...cfg,games:0,wins:0,losses:0,draws:0,times:[],truncated:0};
+ // One engine context per configuration (fresh contexts per game exhaust memory); every game starts
+ // with newGame() and its own random stream, so games do not share match state.
+ let x=0;const math=Object.create(Math);math.random=()=>((x=(Math.imul(x,1664525)+1013904223)>>>0)/4294967296);
+ const ctx=vm.createContext({Math:math,console,performance,setTimeout});vm.runInContext(src,ctx);const run=s=>vm.runInContext(s,ctx);
+ const hero=cfg.seat==='p'?cfg.t:cfg.n,opp=cfg.seat==='p'?cfg.n:cfg.t;
+ run(`var __t=[];const __plan=AI_STRATEGIES.tactician.plan;AI_STRATEGIES.tactician=Object.freeze({...AI_STRATEGIES.tactician,plan(c){const s=performance.now();__plan(c);__t.push(performance.now()-s);}});
+  setAiStrategy('${cfg.seat}','tactician');FAST=true;`);
  for(let g=0;g<count;g++){
-  let x=(seed+index*1000003+g*7919)>>>0;const math=Object.create(Math);
-  math.random=()=>((x=(Math.imul(x,1664525)+1013904223)>>>0)/4294967296);
-  const ctx=vm.createContext({Math:math,console,performance,setTimeout});vm.runInContext(src,ctx);const run=s=>vm.runInContext(s,ctx);
-  const hero=cfg.seat==='p'?cfg.t:cfg.n,opp=cfg.seat==='p'?cfg.n:cfg.t;
-  run(`var __t=[];const __plan=AI_STRATEGIES.tactician.plan;AI_STRATEGIES.tactician=Object.freeze({...AI_STRATEGIES.tactician,plan(c){const s=performance.now();__plan(c);__t.push(performance.now()-s);}});
-   setAiStrategy('${cfg.seat}','tactician');FAST=true;
-   __opp='${opp}';newGame('${hero}');__opp=null;`);
+  x=(seed+index*1000003+g*7919)>>>0;
+  run(`__t=[];tacticianStats.truncated=0;__opp='${opp}';newGame('${hero}');__opp=null;`);
   if(run('G.fac.p')!==hero||run('G.fac.e')!==opp)throw Error('faction setup failed');
   for(let i=0;i<6;i++)await run("(async()=>{aiPlan('p');await endTurn()})()");
   if(run('G.phase')!=='over')throw Error('match did not finish');
@@ -36,10 +38,13 @@ if(process.argv[2]==='--worker'){
  const game=fs.readFileSync(file,'utf8');if(game.split(pick).length!==2)throw Error('opponent selection line not found');
  const src='var __opp=null;\n'+fs.readFileSync('tutorial.js','utf8')+'\n'+game.replace(pick,"const ef=__opp??(scenario?scenario.opponentFaction:rndOf(Object.keys(FACTIONS).filter(f=>f!==pf)));");
  const start=Date.now();
- Promise.all(Array.from({length:workers},(_,w)=>new Promise((ok,bad)=>{
-  const jobs=CONFIGS.map((_,i)=>i).filter(i=>i%workers===w),child=fork(__filename,['--worker']);
-  let got=false;child.on('message',m=>{got=true;ok(m);});child.on('error',bad);child.on('exit',c=>{if(c||!got)bad(Error('worker exit '+c+(got?'':' without results')));});child.send({src,jobs,count,seed});
- }))).then(parts=>{
+ // One child process per configuration, at most `workers` at a time.
+ const queue=CONFIGS.map((_,i)=>i),results=[];
+ const runOne=i=>new Promise((ok,bad)=>{const child=fork(__filename,['--worker']);let got=false;
+  child.on('message',m=>{got=true;ok(m);});child.on('error',bad);
+  child.on('exit',(c,sig)=>{if(c||!got)bad(Error(`config ${i}: worker exit ${c} ${sig||''}${got?'':' without results'}`));});
+  child.send({src,jobs:[i],count,seed});});
+ Promise.all(Array.from({length:workers},async()=>{while(queue.length){const i=queue.shift();results.push(...await runOne(i));process.stderr.write(`config ${i} done\n`);}})).then(()=>[results]).then(parts=>{
   const rows=parts.flat().sort((a,b)=>CONFIGS.findIndex(c=>c.t===a.t&&c.n===a.n&&c.seat===a.seat)-CONFIGS.findIndex(c=>c.t===b.t&&c.n===b.n&&c.seat===b.seat));
   const sum=f=>{const r={games:0,wins:0,losses:0,draws:0};for(const x of rows.filter(f)){r.games+=x.games;r.wins+=x.wins;r.losses+=x.losses;r.draws+=x.draws;}
    r.winRateDecisive=Math.round(r.wins/(r.wins+r.losses)*10000)/100;r.winRate=Math.round(r.wins/r.games*10000)/100;return r;};
