@@ -1,11 +1,16 @@
 // Usage: node scripts/simulate-balance.cjs [game.js] [gamesPerPair=10000] [seed=20261118] > results.json
 // gamesPerPair must be even (each pair is played from both seats). 1000 per pair = 3000 games per run.
-// Programmatic use: require('./simulate-balance.cjs').simulate(sourcePath, gamesPerPair, seed).
+// Optional 4th argument: AI per seat, e.g. p=novice,e=novice (GIFTED-004A). Seat p is the hero side
+// whose faction is listed first in each half; seats swap factions between halves.
+// Programmatic use: require('./simulate-balance.cjs').simulate(sourcePath, gamesPerPair, seed, {ai:{p,e}, setup(api){}}).
+// setup receives {registerAiStrategy, setAiStrategy, observe} of the simulated engine to add experimental strategies.
 // Limitations: both seats use the same greedy aiPlan(); it does not plan around card effects
 // and, without a DOM, Astromancer target choices use the engine's built-in scoring heuristics. Results describe this model,
 // not human win rates, and must not be used alone to change balance.
 const fs=require('node:fs'),crypto=require('node:crypto'),assert=require('node:assert/strict');
-async function simulate(sourcePath='game.js',countArg='10000',seedArg='20261118'){
+async function simulate(sourcePath='game.js',countArg='10000',seedArg='20261118',options={}){
+if(typeof options==='string')options={ai:Object.fromEntries(options.split(',').map(x=>x.split('=')))};
+const ai={p:'novice',e:'novice',...(options.ai||{})};
 const count=Number(countArg);
 assert(Number.isSafeInteger(count)&&count>0&&count%2===0,'Match count must be positive and even');
 assert(/^\d+$/.test(String(seedArg)),'Seed must be an unsigned integer');
@@ -25,8 +30,12 @@ assert.equal(source.length-original.length,patchedOpponent.length-opponentChoice
 let state=initialSeed;const seededMath=Object.create(Math);
 seededMath.random=()=>((state=(Math.imul(state,1664525)+1013904223)>>>0)/4294967296);
 const execute=new Function('Math','__verbose','let __balanceOpponent=null;\n'+source+`
-return async function(count){
+return async function(count,ai,setup){
  FAST=true;
+ if(typeof setAiStrategy==='function'){
+  if(setup)setup({registerAiStrategy,setAiStrategy,observe});
+  setAiStrategy('p',ai.p);setAiStrategy('e',ai.e);
+ } else if(ai.p!=='novice'||ai.e!=='novice'||setup)throw Error('This game.js has no AI strategy interface');
  const rows=[];let completed=0;
  for(const [a,b] of [['eng','ast'],['eng','kee'],['ast','kee']]){
   const row={a,b,games:count,winsA:0,winsB:0,draws:0,sides:[],arena:{present:{games:0,winsA:0,winsB:0,draws:0},absent:{games:0,winsA:0,winsB:0,draws:0}}};
@@ -65,7 +74,7 @@ return async function(count){
  if(completed!==count*3)throw Error('Completed match count inconsistent');
  return {completed,rows};
 };`)(seededMath,require.main===module);
-const start=Date.now(),result=await execute(count);
+const start=Date.now(),result=await execute(count,ai,options.setup);
 const pct=(x,n)=>Math.round(x/n*10000)/100;
 for(const row of result.rows)row.rates={winsA:pct(row.winsA,row.games),winsB:pct(row.winsB,row.games),draws:pct(row.draws,row.games)};
 const factions={};
@@ -74,7 +83,7 @@ for(const row of result.rows)for(const [f,k,o] of [[row.a,'winsA','winsB'],[row.
  t.games+=row.games;t.wins+=row[k];t.losses+=row[o];t.draws+=row.draws;
 }
 for(const t of Object.values(factions))t.winRate=pct(t.wins,t.games);
-return {sourcePath,sourceSha256:crypto.createHash('sha256').update(original).digest('hex'),seed:initialSeed,rng:'LCG32: 1664525*x+1013904223',gamesPerPair:count,totalGames:result.completed,elapsedSeconds:(Date.now()-start)/1000,factions,...result};
+return {sourcePath,sourceSha256:crypto.createHash('sha256').update(original).digest('hex'),seed:initialSeed,rng:'LCG32: 1664525*x+1013904223',ai,gamesPerPair:count,totalGames:result.completed,elapsedSeconds:(Date.now()-start)/1000,factions,...result};
 }
 module.exports={simulate};
 if(require.main===module)simulate(...process.argv.slice(2)).then(r=>console.log(JSON.stringify(r,null,2))).catch(e=>{console.error(e);process.exitCode=1});
