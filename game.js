@@ -129,11 +129,15 @@ function place(o,c,l){
 function unplace(c){if(gameMode==='tutorial'&&(!c.pending||G.phase!=='plan'))return false;const o=c.owner;G.board[c.lane].splice(G.board[c.lane].indexOf(c),1);c.lane=-1;c.pending=false;
  G.spent[o]-=c.paid;if(c.usedDisc){G.discount[o]=1;c.usedDisc=false;}if(c.usedSurcharge){G.surcharge[o]=1;c.usedSurcharge=false;}G.hand[o].push(c);if(gameMode==='tutorial'&&o==='p')Tutorial.undone();}
 
-function startTurn(){
+// Turn-start state changes shared by the match and the AI sandbox (GIFTED-004C).
+function beginTurnState(){
  G.turn++;G.spent={p:0,e:0};
  for(const o of ['p','e'])if(G.surchargeTurn[o]!==G.turn)G.surcharge[o]=0;
  if(G.turn<=3){G.locRev[G.turn-1]=true;}
  draw('p');draw('e');
+}
+function startTurn(){
+ beginTurnState();
  // The planning phase starts before the opponent plans, so strategies observe phase 'plan'
  // and can act through aiContext().play() on every turn (GIFTED-004A). Novice ignores the phase.
  G.phase='plan';
@@ -159,6 +163,8 @@ function setAiStrategy(side,id){if(side!=='p'&&side!=='e')throw Error('Invalid s
 function aiStrategy(o){return AI_STRATEGIES[aiSides[o]];}
 function aiPlan(o){const s=aiStrategy(o);if(s.legacy)return s.plan(o);return s.plan(aiContext(o));}
 // Information available to side o: its own hand, the public board and what the rules have revealed.
+// Both heroes' factions are shown in the UI; discard piles hold destroyed cards and cards discarded by
+// Astromancer, which both sides have seen (GIFTED-004C).
 // Never included: the opponent's hand or face-down cards (only their count), any deck order or
 // content, unrevealed locations, card uids of hidden cards, or the random number state.
 function observe(o){
@@ -166,8 +172,8 @@ function observe(o){
  return JSON.parse(JSON.stringify({
   side:o,turn:G.turn,phase:G.phase,mode:gameMode,energy:G.turn-G.spent[o],
   me:{hand:G.hand[o].map(c=>({uid:c.uid,id:c.def.id,cost:effCost(o,c),baseCost:c.def.cost,power:c.def.power+c.buff})),
-   deckCount:G.deck[o].length,discount:G.discount[o],surcharge:surchargeOf(o)},
-  foe:{handCount:G.hand[foe].length,deckCount:G.deck[foe].length,discount:G.discount[foe],surcharge:surchargeOf(foe)},
+   deckCount:G.deck[o].length,discount:G.discount[o],surcharge:surchargeOf(o),faction:G.fac[o],discard:G.discard[o].map(c=>c.def.id)},
+  foe:{handCount:G.hand[foe].length,deckCount:G.deck[foe].length,discount:G.discount[foe],surcharge:surchargeOf(foe),faction:G.fac[foe],discard:G.discard[foe].map(c=>c.def.id)},
   lanes:[0,1,2].map(l=>({lane:l,location:G.locRev[l]?G.locs[l].id:null,ruleDisabled:G.locRev[l]&&locationRuleDisabled(l),
    canPlay:canPlay(o,l),foeCanPlay:canPlay(foe,l),blockedNextTurn:{me:G.blockedUntil[o][l]===G.turn+1,foe:G.blockedUntil[foe][l]===G.turn+1},
    trap:{me:G.trap[l][o],foe:G.trap[l][foe]},total:{me:laneTotal(l,o),foe:laneTotal(l,foe)},
@@ -236,6 +242,8 @@ const TACTICIAN={id:'tactician',version:'tactician-1',maxPlans:2000,samples:2};
 const AI_UNKNOWN_CARD=Object.freeze({id:'?',f:'?',name:'?',cost:99,power:0,icon:'?',text:''});
 const AI_UNKNOWN_LOC=Object.freeze({id:'?',name:'?',icon:'?',text:''});
 const tacticianStats={plans:0,truncated:0,calls:0};
+// Set only by the Strategist while it models an opponent answer (fewer sandbox samples); 0 = normal Tactician.
+let tacticianFastSamples=0;
 function tacticianState(obs){
  const o=obs.side,f=other(o),T=obs.turn;let fake=-1;
  const card=(id,owner,x={})=>({uid:x.uid??fake--,def:id==='?'?AI_UNKNOWN_CARD:CARDS.find(d=>d.id===id),owner,lane:x.lane??-1,buff:x.buff||0,
@@ -303,7 +311,7 @@ function tacticianValue(obs,o,first){
 }
 function tacticianEvaluate(obs,base,plan){
  const o=obs.side,f=other(o);let total=0,n=0;
- for(let s=1;s<=TACTICIAN.samples;s++){
+ for(let s=1;s<=(tacticianFastSamples||TACTICIAN.samples);s++){
   const st=tacticianClone(base);
   total+=runAiSandbox(st,0x9e3779b1*s+plan.length,()=>{
    for(const [uid,l] of plan){const c=G.hand[o].find(x=>x.uid===uid);place(o,c,l);}
@@ -371,6 +379,103 @@ function tacticianPick(owner,req,sandbox){
  return req.optional?null:pick(0);
 }
 registerAiStrategy({id:TACTICIAN.id,version:TACTICIAN.version,name:'Тактик',plan:tacticianPlan,choose:(ctx,req)=>tacticianPick(ctx.side,req,false)});
+
+/* ================= ИИ: Стратег (GIFTED-004C) ================= */
+// strategist-1 = Tactician candidates + Monte Carlo over sampled worlds. A world fills the unknown
+// (opponent hand and face-down cards, both deck orders, unrevealed locations) only from public
+// rules: the faction deck lists, cards seen so far and the observation; it never reads the real
+// hidden state or the match RNG. In each world the opponent answers this turn if it has not acted,
+// and the match is played on with the shared engine rules (Novice-style play for both sides) up to
+// the horizon: two turns ahead on turns 1-3, the end of the match from turn 4. The candidate with
+// the best mean result is played; anything unexpected falls back to the Tactician plan.
+const STRATEGIST={id:'strategist',version:'strategist-1',candidates:6,worlds:12,finalists:3,finalWorlds:24,horizonEarly:2,modelAnswer:true};
+const strategistStats={calls:0,fallbacks:0,rollouts:0};
+const strategistMemory={p:{turn:0,seen:{me:new Set(),foe:new Set()}},e:{turn:0,seen:{me:new Set(),foe:new Set()}}};
+// Cards a side has seen: everything revealed so far (destroyed cards leave the board), its hand and discards.
+function strategistRemember(obs){
+ const m=strategistMemory[obs.side];
+ if(obs.turn<m.turn||obs.turn===1)m.seen={me:new Set(),foe:new Set()}; // a new match
+ m.turn=obs.turn;
+ for(const l of obs.lanes)for(const c of l.revealed)m.seen[c.owner].add(c.id);
+ for(const l of obs.lanes)for(const c of l.myPending)m.seen.me.add(c.id);
+ for(const h of obs.me.hand)m.seen.me.add(h.id);
+ for(const id of obs.me.discard)m.seen.me.add(id);for(const id of obs.foe.discard)m.seen.foe.add(id);
+ return m.seen;
+}
+const sShuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+// Samples one world into the sandbox state st (built by tacticianState); runs inside runAiSandbox.
+function strategistWorld(obs,st,seen){
+ const o=obs.side,f=other(o),T=obs.turn;
+ const unseen=(fac,known)=>CARDS.filter(d=>d.f===fac&&!known.has(d.id));
+ const foePool=sShuffle(unseen(obs.foe.faction,seen.foe)),myPool=sShuffle(unseen(obs.me.faction,seen.me));
+ const card=(def,owner)=>({uid:-(++strategistStats.rollouts)-1e6,def,owner,lane:-1,buff:0,revealed:false,pending:false,paid:0,usedDisc:false,usedSurcharge:false,flash:null});
+ // Opponent face-down cards: sampled with a total cost the opponent could have paid this turn.
+ const hidden=obs.lanes.flatMap(l=>Array(l.foePendingCount).fill(l.lane));
+ let pick=null;
+ for(let t=0;t<20&&hidden.length;t++){const c=sShuffle([...foePool]).slice(0,hidden.length);
+  if(c.reduce((s,d)=>s+d.cost,0)<=T+1){pick=c;break;}}
+ pick=pick||foePool.slice().sort((a,b)=>a.cost-b.cost).slice(0,hidden.length);
+ hidden.forEach((l,i)=>{if(!pick[i])return;const c=card(pick[i],f);c.lane=l;c.pending=true;st.board[l].push(c);foePool.splice(foePool.indexOf(pick[i]),1);});
+ st.hand[f]=foePool.splice(0,obs.foe.handCount).map(d=>card(d,f));
+ st.deck[f]=foePool.splice(0,obs.foe.deckCount).map(d=>card(d,f));
+ st.deck[o]=myPool.slice(0,obs.me.deckCount).map(d=>card(d,o));
+ const known=new Set(obs.lanes.filter(l=>l.location).map(l=>l.location)),locs=sShuffle(LOCS.filter(L=>!known.has(L.id)));
+ st.locs=st.locs.map((L,i)=>st.locRev[i]?L:locs.pop());
+ return st;
+}
+// Engine-rule playout in the sandbox from the current reveal to the horizon; returns the value for o.
+function strategistPlayout(obs,o,horizon){
+ const choose=q=>{const sc=q.score||((c)=>c.def.power+c.def.cost*.75);return q.options.reduce((b,x)=>b===null||sc(x)>sc(b)?x:b,null);};
+ for(;;){
+  G.phase='reveal';sandboxReveal(initiative(),choose);
+  if(G.turn>=6){const r=matchOutcome().res;return r===o?1:r===null?.5:0;}
+  if(G.turn>=horizon)return tacticianValue({...observe(o),turn:G.turn},o,null);
+  beginTurnState();G.phase='plan';noviceAiPlan('e');noviceAiPlan('p');
+ }
+}
+function strategistPlan(ctx){
+ strategistStats.calls++;
+ const obs=ctx.observation;if(obs.phase!=='plan')return;
+ const base=tacticianState(obs);let fallback=null;
+ try{
+  const seen=strategistRemember(obs);
+  const plans=tacticianPlans(obs,base),scored=plans.map(p=>({p,v:tacticianEvaluate(obs,base,p)}));
+  const order=[...scored].sort((a,b)=>b.v-a.v);fallback=order[0].p;
+  const cands=order.slice(0,STRATEGIST.candidates);if(!cands.some(c=>!c.p.length))cands.push(scored[0]);
+  const o=obs.side,f=other(o),foeToAct=o==='e'&&!obs.lanes.some(l=>l.foePendingCount);
+  const horizon=obs.turn>=4?6:Math.min(6,obs.turn+STRATEGIST.horizonEarly);
+  const total=cands.map(()=>0),runs=cands.map(()=>0);
+  const evalWorld=(w,ids)=>{
+   const seed=(0x51ed27*(w+1)+obs.turn*977+(o==='p'?13:29))>>>0;
+   const world=runAiSandbox(tacticianClone(base),seed,()=>strategistWorld(obs,tacticianClone(base),seen));
+   // The opponent sees only how many cards we placed per location, so its likely answer (the
+   // Tactician's choice from its view of this sampled world) is shared by candidates with the same counts.
+   const answers=new Map();
+   for(const i of ids){const c=cands[i];runs[i]++;total[i]+=runAiSandbox(tacticianClone(world),seed^0x9e37,()=>{
+    for(const [uid,l] of c.p)place(o,G.hand[o].find(x=>x.uid===uid),l);
+    if(foeToAct&&STRATEGIST.modelAnswer){
+     const sig=[0,1,2].map(l=>c.p.filter(x=>x[1]===l).length).join();
+     if(!answers.has(sig)){answers.set(sig,runAiSandbox(tacticianClone(G),seed^0x5bd1,()=>{
+      tacticianFastSamples=1;try{tacticianPlan(aiContext(f));}finally{tacticianFastSamples=0;}
+      return G.board.flatMap(l=>l.filter(x=>x.owner===f&&x.pending).map(x=>[x.uid,x.lane]));}));}
+     for(const [uid,l] of answers.get(sig)){const x=G.hand[f].find(y=>y.uid===uid);if(x&&canPlay(f,l))place(f,x,l);}
+    }
+    return strategistPlayout(obs,o,horizon);});}
+  };
+  // Successive halving: every candidate on the first worlds, the best few on more worlds
+  // (the same worlds and seeds for all candidates, so differences come from the plans).
+  const all=cands.map((_,i)=>i),mean=i=>total[i]/runs[i]+cands[i].v*1e-3;
+  for(let w=0;w<STRATEGIST.worlds;w++)evalWorld(w,all);
+  const finalists=[...all].sort((a,b)=>mean(b)-mean(a)||a-b).slice(0,STRATEGIST.finalists);
+  for(let w=STRATEGIST.worlds;w<STRATEGIST.worlds+STRATEGIST.finalWorlds;w++)evalWorld(w,finalists);
+  let best=finalists[0];for(const i of finalists)if(mean(i)>mean(best)+1e-9)best=i;
+  for(const [uid,l] of cands[best].p)if(!ctx.play(uid,l))break;
+ }catch(err){
+  strategistStats.fallbacks++;
+  for(const [uid,l] of fallback||[])if(!ctx.play(uid,l))break;
+ }
+}
+registerAiStrategy({id:STRATEGIST.id,version:STRATEGIST.version,name:'Стратег',plan:strategistPlan,choose:(ctx,req)=>tacticianPick(ctx.side,req,false)});
 
 /* ================= ПРОКРУТКА КОЛОДЫ АСТРОМАНТКИ ================= */
 let astroChoice=null;
@@ -538,15 +643,20 @@ async function endTurn(){
  if(G.turn>=6)finish();else startTurn();
 }
 
-function finish(){
- const finishedSession=G;
- const resultVersion=resultViewVersion;
- G.phase='over';render();
+// Match result by the rules: more locations won; on equal locations, more total power; else a draw.
+function matchOutcome(){
  let w={p:0,e:0};const lanes=[];
  for(let l=0;l<3;l++){const x=laneWinner(l);if(x)w[x]++;lanes.push({p:laneTotal(l,'p'),e:laneTotal(l,'e'),w:x,L:G.locs[l]});}
  let res;
  if(w.p!==w.e)res=w.p>w.e?'p':'e';
  else{const tp=lanes.reduce((s,x)=>s+x.p,0),te=lanes.reduce((s,x)=>s+x.e,0);res=tp===te?null:(tp>te?'p':'e');}
+ return {w,lanes,res};
+}
+function finish(){
+ const finishedSession=G;
+ const resultVersion=resultViewVersion;
+ G.phase='over';render();
+ const {w,lanes,res}=matchOutcome();
  G.result=res;
  if(gameMode==='tutorial'){Tutorial.finish(w,lanes);return;}
  if(!HAS_DOM)return;
