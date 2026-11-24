@@ -73,7 +73,9 @@ const run=s=>vm.runInContext(s,context);
  assert(picked.uid===deckUids[1],'Inline deck option selected the wrong card');
  run("newGame('ast');G.surcharge={p:0,e:0};const taxCard=inst(CARDS.find(x=>x.id==='a3'),'p');taxCard.lane=0;taxCard.revealed=true;G.board[0]=[taxCard];taxCard.def.onReveal(taxCard);");
  assert(run('G.surcharge.e')===1,'Gadalka did not tax the opponent next card');
- run("const taxed=inst(CARDS.find(x=>x.id==='a8'),'e');G.hand.e=[taxed];G.turn=4;G.spent.e=0;G.board=[[],[],[]];");
+ // GIFTED-002 (#36): the surcharge applies on the turn after the reveal (here turn 1 -> 2).
+ assert(run('G.surchargeTurn.e')===run('G.turn')+1,'Gadalka surcharge must target the next turn');
+ run("const taxed=inst(CARDS.find(x=>x.id==='a8'),'e');G.hand.e=[taxed];G.turn=G.surchargeTurn.e;G.spent.e=0;G.board=[[],[],[]];");
  assert(run('effCost("e",G.hand.e[0])')===5,'Taxed cost was not increased by one');
  run("place('e',G.hand.e[0],0)");
  assert(run('G.surcharge.e')===0,'Tax was not consumed by the next played card');
