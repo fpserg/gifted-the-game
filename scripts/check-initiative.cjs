@@ -43,12 +43,21 @@ const never=()=>{throw Error('unexpected random call');};
    assert.equal(t.run(`[0,1,2].reduce((s,l)=>s+laneTotal(l,'${x}'),0)`),6);
    put(t.run,'e1',x,2,{revealed:false});put(t.run,'e1',y,2,{revealed:false});
    const r=await reveal(t);assert.equal(r.first,y,'modified totals decide');assert.deepEqual(r.seq,[y,x]);}
-  // 4. Power changes during the reveal do not change the chosen order: y leads 6:5, its first card
-  //    (Raven, -2 to x's strongest here) flips the totals, yet y's second card still reveals before x.
+  // 4. The order chosen before the reveal is kept even when the lead really changes mid-reveal.
+  //    Before: x 5, y 6 -> y first. y's first card (power 1) is hit by x's Trap (-3) in lane 1:
+  //    y drops to 4 while x stays at 5, so a per-card recount would now give x the initiative.
+  //    The fixed order must still reveal y's second card before x's card: [y,y,x].
   {const t=boot(never);
    put(t.run,'e1',x,0,{buff:2});put(t.run,'e1',y,0,{buff:3});
-   put(t.run,'k4',y,0,{revealed:false});put(t.run,'e1',y,1,{revealed:false,buff:-3});put(t.run,'e1',x,1,{revealed:false});
-   const r=await reveal(t);assert.equal(r.first,y);assert.deepEqual(r.seq,[y,y,x],'order must stay fixed for the turn');}
+   t.run(`G.trap[1].${x}=true`);
+   put(t.run,'e1',y,1,{revealed:false,buff:-2});put(t.run,'e1',y,2,{revealed:false,buff:-2});put(t.run,'e1',x,2,{revealed:false});
+   const sums=()=>JSON.parse(t.run(`JSON.stringify([0,1,2].reduce((a,l)=>[a[0]+laneTotal(l,'${x}'),a[1]+laneTotal(l,'${y}')],[0,0]))`));
+   assert.deepEqual(sums(),[5,6],'before the reveal y leads');
+   t.run(`var __after=[];const __render=render;render=function(){if(G.phase==='reveal')__after.push([0,1,2].reduce((a,l)=>[a[0]+laneTotal(l,'${x}'),a[1]+laneTotal(l,'${y}')],[0,0]));return __render();}`);
+   const r=await reveal(t);
+   const after=JSON.parse(t.run('JSON.stringify(__after)'));
+   assert.deepEqual(after[0],[5,6],'reveal starts with y ahead');assert.deepEqual(after[1],[5,4],'after y\'s first card x must lead by total power (real lead change)');
+   assert.equal(r.first,y);assert.deepEqual(r.seq,[y,y,x],'initiative must not be recounted during the reveal');}
  }
  // 5. Exact tie, including the empty board of turn 1: one 50/50 lot per turn, both branches.
  for(const [lot,side] of [[.1,'p'],[.49,'p'],[.5,'e'],[.9,'e']]){
