@@ -1,5 +1,5 @@
 # GIFTED — Development Protocol
 
-ChatGPT — продуктовый Architect; Claude Code — основной Builder; независимый Inspector — отдельный процесс ChatGPT, не автор реализации; Product Owner утверждает продуктовые решения и существенные релизы.
+ChatGPT — продуктовый Architect; Claude Code — основной Builder; независимый Inspector — отдельный процесс, не участвовавший в реализации проверяемого изменения; Product Owner утверждает продуктовые решения и существенные релизы.
 
 Порядок работы: docs/CLAUDE_WORKFLOW.md. Политика рисков, инспекции и публикации: docs/ORCHESTRATOR_POLICY.md. Обязательные ограничения: AGENTS.md. Все изменения через PR; Builder не выполняет merge. Architect фиксирует READY задачи и критерии, Builder запускает реальные тесты и открывает PR, Inspector проверяет точный HEAD и записывает вердикт, Architect или владелец публикует только по действующей политике. Не считать обсуждение или самооценку независимой инспекцией. Не менять правила, карты, экономику без утверждения; при утверждённых изменениях обновлять игровые документы. Проверять iPhone/PWA, safe areas, кэш и доступность; честно сообщать ограничения Safari. Отчёт: Task / PR / SHA / Scope / Tests PASS FAIL NOT RUN / Findings / Risk / Status.
