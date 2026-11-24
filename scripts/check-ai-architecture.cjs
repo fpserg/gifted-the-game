@@ -3,7 +3,8 @@
 //  1. Baseline preservation: 90 seeded normal matches and the tutorial (both turn-1 lots) produce the
 //     same Math.random call sequence and the same engine state after every turn as the baseline commit.
 //  2. Strategy interface: registry validation, Novice by default, independent choice per side,
-//     legal-action validation and automatic target choice for non-legacy strategies.
+//     legal-action validation and automatic target choice for non-legacy strategies; full six-turn
+//     matches where a non-legacy strategy places cards on every turn for p, for e and for both.
 //  3. Visibility boundary: observe(side) is unchanged when only hidden state changes (opponent hand,
 //     face-down cards, deck orders, unrevealed locations, random state) and changes with public state.
 //  4. Legacy Novice check (empirical, scope below): its plan does not change under the same hidden
@@ -38,13 +39,14 @@ async function tutorialTrace(src,lot){
 }
 const other=o=>o==='p'?'e':'p';
 (async()=>{
- // 1. Baseline preservation.
- let same=0;
- for(const f of ['eng','ast','kee'])for(let seed=1;seed<=30;seed++){
+ // 1. Baseline preservation. AI_CHECK_SKIP_BASELINE=1 is used only by check-ai-mutations.cjs to show
+ // that the legacy honesty check (section 4) detects a cheating Novice on its own.
+ let same=0;const skipBaseline=process.env.AI_CHECK_SKIP_BASELINE==='1';
+ if(!skipBaseline)for(const f of ['eng','ast','kee'])for(let seed=1;seed<=30;seed++){
   const now=await normalTrace(current,seed,f),old=await normalTrace(base,seed,f);
   assert.deepEqual(now,old,`${f}#${seed}: RNG order or engine state differs from ${ref.slice(0,7)}`);same++;
  }
- for(const lot of [.1,.9])assert.deepEqual(await tutorialTrace(current,lot),await tutorialTrace(base,lot),'tutorial differs from baseline');
+ if(!skipBaseline)for(const lot of [.1,.9])assert.deepEqual(await tutorialTrace(current,lot),await tutorialTrace(base,lot),'tutorial differs from baseline');
 
  // 2. Strategy interface.
  {const t=boot(current,lcg(5));
@@ -77,7 +79,11 @@ const other=o=>o==='p'?'e':'p';
   if(cheap>=0){assert.equal(g.run(`__ctx.play(${cheap},0)`),false,'blocked lane must be refused');
    g.run("G.blockedUntil.e[0]=0");assert.equal(g.run(`__ctx.play(${cheap},0)`),true,'legal play must succeed');
    assert.equal(g.run(`G.board[0].some(c=>c.uid===${cheap}&&c.pending)`),true);}
-  g.run("G.phase='reveal'");assert.equal(g.run(`__ctx.play(${k11},1)`),false,'play outside planning must be refused');g.run("G.phase='plan'");
+  // Phase check with an otherwise legal play: refused outside planning, accepted in planning.
+  const ok=g.run("(()=>{G.spent.e=0;G.blockedUntil.e=[0,0,0];const c=inst(CARDS.find(x=>x.id==='e1'),'e');G.hand.e.push(c);return c.uid;})()");
+  const freeLane=g.run('[0,1,2].find(l=>canPlay("e",l))');assert.notEqual(freeLane,undefined);
+  for(const ph of ['reveal','lesson','over']){g.run(`G.phase='${ph}'`);assert.equal(g.run(`__ctx.play(${ok},${freeLane})`),false,`play outside planning must be refused (${ph})`);}
+  g.run("G.phase='plan'");assert.equal(g.run(`__ctx.play(${ok},${freeLane})`),true,'the same play is legal during planning');
   // Automatic target choice: legacy keeps first-best argmax; others pick by index from public descriptors.
   const lanes=await g.run("chooseAstroLane('t',[0,1,2],'p',l=>[1,3,3][l])");assert.equal(lanes,1,'legacy first-best lane');
   g.run(`registerAiStrategy({id:'last',version:'test-1',plan(){},choose(ctx,req){globalThis.__req=req;return req.options.length-1;}});setAiStrategy('p','last')`);
@@ -87,6 +93,43 @@ const other=o=>o==='p'?'e':'p';
   assert.equal(pick,g.run('G.hand.e[1].uid'));assert.deepEqual(Object.keys(JSON.parse(g.run("JSON.stringify(__req.options[0])"))).sort(),['cost','id','lane','power','uid']);
   g.run(`registerAiStrategy({id:'bad',version:'test-1',plan(){},choose(){return 9;}});setAiStrategy('p','bad')`);
   await assert.rejects(async()=>g.run("chooseAstroLane('t',[0,1],'p',()=>0)"),/invalid choice/);
+ }
+
+ // 2b. Full six-turn matches with a non-legacy strategy on side p, side e and both sides. The strategy
+ // decides only from its observation and acts only through ctx.play(); the harness separately records,
+ // from the engine, whether a legal play existed, so every refused or missed legal play is caught.
+ {const STRAT=`var __log=[],__choices=[];registerAiStrategy({id:'greedy-test',version:'test-1',plan(ctx){
+   const s=ctx.side,legal=G.hand[s].some(c=>effCost(s,c)<=G.turn-G.spent[s])&&[0,1,2].some(l=>canPlay(s,l));
+   const e={side:s,turn:ctx.observation.turn,phase:ctx.observation.phase,legal,placed:0,refused:0};__log.push(e);
+   for(let obs=ctx.observation;;obs=ctx.observe()){
+    const card=obs.me.hand.filter(c=>c.cost<=obs.energy).sort((a,b)=>b.cost-a.cost||a.uid-b.uid)[0],lane=obs.lanes.find(l=>l.canPlay);
+    if(!card||!lane)break;if(ctx.play(card.uid,lane.lane))e.placed++;else{e.refused++;break;}
+   }},
+   choose(ctx,req){__choices.push(req.kind);return 0;}});`;
+  const configs=[['greedy-test','novice'],['novice','greedy-test'],['greedy-test','greedy-test']];
+  let matches=0,plays=0,allTurnsBoth=0,choices=0;const covered={};
+  for(const [pa,ea] of configs)for(const f of ['eng','ast','kee'])for(let seed=1;seed<=30;seed++){
+   const g=boot(current,lcg(seed));g.run(STRAT+`setAiStrategy('p','${pa}');setAiStrategy('e','${ea}');FAST=true;newGame('${f}')`);
+   for(let i=0;i<6;i++)await g.run("(async()=>{aiPlan('p');await endTurn()})()");
+   assert.equal(g.run('G.phase'),'over');matches++;
+   const log=JSON.parse(g.run('JSON.stringify(__log)')),tag=`${pa}/${ea} ${f}#${seed}`;
+   const greedy=[pa==='greedy-test'&&'p',ea==='greedy-test'&&'e'].filter(Boolean);
+   assert.deepEqual([...new Set(log.map(x=>x.side))].sort(),greedy.sort(),tag+': strategy called for the wrong side');
+   for(const o of greedy){const mine=log.filter(x=>x.side===o);
+    assert.deepEqual(mine.map(x=>x.turn),[1,2,3,4,5,6],tag+`: side ${o} must plan once on each turn`);
+    for(const x of mine){
+     assert.equal(x.phase,'plan',`${tag}: side ${o} turn ${x.turn} observed phase ${x.phase}`);
+     assert.equal(x.refused,0,`${tag}: side ${o} turn ${x.turn} legal play refused`);
+     if(x.legal)assert(x.placed>0,`${tag}: side ${o} turn ${x.turn} had a legal play but placed nothing`);
+     if(x.placed){covered[o+x.turn]=1;plays+=x.placed;}
+    }}
+   if(greedy.length===2&&log.every(x=>x.placed>0))allTurnsBoth++;
+   choices+=g.run('__choices.length');
+  }
+  for(const o of ['p','e'])for(let t=1;t<=6;t++)assert(covered[o+t],`no successful play by side ${o} on turn ${t}`);
+  assert(allTurnsBoth>0,'no match where both sides placed cards on all six turns');
+  assert(choices>0,'Astromancer effects must reach choose() of the new strategy');
+  globalThis.__matchSummary=`${matches} matches with the new strategy (p, e, both): ${plays} successful plays and ${choices} effect choices, every legal turn played, ${allTurnsBoth} matches with plays by both sides on all six turns`;
  }
 
  // 3./4. Visibility boundary for observe() and the empirical legacy check.
@@ -123,5 +166,6 @@ const other=o=>o==='p'?'e':'p';
   const o3=JSON.parse(t.run("JSON.stringify(observe('p'))"));assert.equal(o3.lanes[1].foePendingCount,1,'face-down cards are visible as a count');
   assert(!JSON.stringify(o3).includes('"deck":')&&!('hand' in o3.foe),'no opponent hand or deck content');assert.notEqual(JSON.stringify(o3),o2);}
 
- console.log(`PASS: ${same} normal matches and the tutorial (both lots) keep baseline ${ref.slice(0,7)} RNG order and state; strategy registry, per-side choice, legal actions and target choices; observe() unchanged by hidden state at ${observed} planning points; legacy Novice plan unchanged by the same hidden changes at ${legacyPoints} points`);
+ if(skipBaseline)console.log('NOTE: baseline comparison skipped (AI_CHECK_SKIP_BASELINE=1)');
+ console.log(`PASS: ${same} normal matches and the tutorial (both lots) keep baseline ${ref.slice(0,7)} RNG order and state; strategy registry, per-side choice, legal actions and target choices; observe() unchanged by hidden state at ${observed} planning points; legacy Novice plan unchanged by the same hidden changes at ${legacyPoints} points; ${__matchSummary}`);
 })().catch(e=>{console.error(e);process.exitCode=1});

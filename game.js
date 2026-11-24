@@ -134,8 +134,11 @@ function startTurn(){
  for(const o of ['p','e'])if(G.surchargeTurn[o]!==G.turn)G.surcharge[o]=0;
  if(G.turn<=3){G.locRev[G.turn-1]=true;}
  draw('p');draw('e');
+ // The planning phase starts before the opponent plans, so strategies observe phase 'plan'
+ // and can act through aiContext().play() on every turn (GIFTED-004A). Novice ignores the phase.
+ G.phase='plan';
  if(gameMode==='tutorial'){Tutorial.turn();Tutorial.opponent();}else aiPlan('e');
- G.phase='plan';G.sel=null;
+ G.sel=null;
  render();
 }
 
