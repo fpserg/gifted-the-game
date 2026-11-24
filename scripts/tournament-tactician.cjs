@@ -27,7 +27,7 @@ async function playConfig(src,cfg,index,count,seed){
  return out;
 }
 if(process.argv[2]==='--worker'){
- process.on('message',async({src,jobs,count,seed})=>{const res=[];for(const i of jobs)res.push(await playConfig(src,CONFIGS[i],i,count,seed));process.send(res);process.exit(0);});
+ process.on('message',async({src,jobs,count,seed})=>{const res=[];for(const i of jobs)res.push(await playConfig(src,CONFIGS[i],i,count,seed));process.send(res,()=>process.exit(0));});
 }else{
  const count=+(process.argv[2]||1667),seed=+(process.argv[3]||20261124),workers=Math.max(1,+(process.argv[4]||2)),file=process.argv[5]||'game.js';
  // In memory only: let the harness fix the opponent faction, mirrors included (newGame never picks
@@ -38,7 +38,7 @@ if(process.argv[2]==='--worker'){
  const start=Date.now();
  Promise.all(Array.from({length:workers},(_,w)=>new Promise((ok,bad)=>{
   const jobs=CONFIGS.map((_,i)=>i).filter(i=>i%workers===w),child=fork(__filename,['--worker']);
-  child.on('message',ok);child.on('error',bad);child.on('exit',c=>{if(c)bad(Error('worker exit '+c));});child.send({src,jobs,count,seed});
+  let got=false;child.on('message',m=>{got=true;ok(m);});child.on('error',bad);child.on('exit',c=>{if(c||!got)bad(Error('worker exit '+c+(got?'':' without results')));});child.send({src,jobs,count,seed});
  }))).then(parts=>{
   const rows=parts.flat().sort((a,b)=>CONFIGS.findIndex(c=>c.t===a.t&&c.n===a.n&&c.seat===a.seat)-CONFIGS.findIndex(c=>c.t===b.t&&c.n===b.n&&c.seat===b.seat));
   const sum=f=>{const r={games:0,wins:0,losses:0,draws:0};for(const x of rows.filter(f)){r.games+=x.games;r.wins+=x.wins;r.losses+=x.losses;r.draws+=x.draws;}
