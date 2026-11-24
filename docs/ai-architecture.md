@@ -368,4 +368,3 @@ python3 scripts/measure-tactician-browser.py 60 /usr/bin/google-chrome strategis
   - `check-ai-architecture` против `2923eaf` и `96c31b2` — 90/90 и обучение;
   - 30 000 партий novice/novice (seed 20261118) идентичны базе `96c31b2`;
   - турнир Тактик/Новичок из 004B (30 006 партий, seed 20261124) идентичен базе по всем 18 конфигурациям — 73,45%.
-
