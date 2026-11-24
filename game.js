@@ -35,7 +35,7 @@ const CARDS=[
 // ---- Астромантка: адаптация, манипуляция + темп ----
 {id:'a1',f:'ast',name:'Звёздная пыль',cost:1,power:2,icon:'✨',text:'Классовая карта. При раскрытии: возьми карту.',onReveal:c=>draw(c.owner)},
 {id:'a2',f:'ast',name:'Чёрный кот',cost:1,power:2,icon:'🐈‍⬛',text:'Темповая карта. При раскрытии: следующая сыгранная тобой карта стоит на 1 меньше.',onReveal:c=>{G.discount[c.owner]=1;}},
-{id:'a3',f:'ast',name:'Гадалка',cost:2,power:2,icon:'🔮',text:'Классовая карта. При раскрытии: следующая карта соперника стоит на 1 энергию больше.',onReveal:c=>{G.surcharge[other(c.owner)]=1;say('⛓ Следующая карта соперника стоит на +1 энергию');}},
+{id:'a3',f:'ast',name:'Гадалка',cost:2,power:2,icon:'🔮',text:'Классовая карта. При раскрытии: первая карта, сыгранная соперником на следующем ходу, стоит на 1 энергию больше.',onReveal:c=>{const f=other(c.owner);G.surcharge[f]=1;G.surchargeTurn[f]=G.turn+1;say('⛓ Первая карта соперника на следующем ходу стоит на +1 энергию');}},
 {id:'a4',f:'ast',name:'Комета',cost:2,power:3,icon:'☄️',text:'Темповая карта. При раскрытии: +2 силы, если у тебя есть карта в другой локации.',onReveal:c=>{if(allRev(c.owner).some(t=>t!==c&&t.lane!==c.lane))buff(c,2);}},
 {id:'a5',f:'ast',name:'Лунная сова',cost:3,power:2,icon:'🦉',text:'Классовая карта. Если это не финальный ход, выбери открытую локацию: соперник не сможет выкладывать туда карты на следующем ходу.'},
 {id:'a6',f:'ast',name:'Астролябия',cost:3,power:3,icon:'🧭',text:'Темповая карта. В конце каждого хода: +1 силы себе.',endTurn:c=>buff(c,1)},
@@ -86,7 +86,7 @@ function newGame(pf,scenario=null){
  const ef=scenario?scenario.opponentFaction:rndOf(Object.keys(FACTIONS).filter(f=>f!==pf));
  const locs=scenario?scenario.locations.map(id=>LOCS.find(l=>l.id===id)):shuffle([...LOCS]).slice(0,3);
  G={turn:0,fac:{p:pf,e:ef},deck:{p:[],e:[]},discard:{p:[],e:[]},hand:{p:[],e:[]},board:[[],[],[]],locs,locRev:[false,false,false],
-  spent:{p:0,e:0},discount:{p:0,e:0},surcharge:{p:0,e:0},blockedUntil:{p:[0,0,0],e:[0,0,0]},locDisabledUntil:[0,0,0],trap:[{p:false,e:false},{p:false,e:false},{p:false,e:false}],phase:'plan',sel:null,info:null,busy:false};
+  spent:{p:0,e:0},discount:{p:0,e:0},surcharge:{p:0,e:0},surchargeTurn:{p:0,e:0},blockedUntil:{p:[0,0,0],e:[0,0,0]},locDisabledUntil:[0,0,0],trap:[{p:false,e:false},{p:false,e:false},{p:false,e:false}],phase:'plan',sel:null,info:null,busy:false};
  for(const o of ['p','e']){G.deck[o]=scenario?scenario.decks[o].map(id=>inst(CARDS.find(d=>d.id===id),o)).reverse():shuffle(CARDS.filter(c=>c.f===G.fac[o]).map(d=>inst(d,o)));for(let i=0;i<3;i++)draw(o);}
  startTurn();
 }
@@ -112,14 +112,16 @@ const now=()=>typeof performance!=='undefined'?performance.now():Date.now();
 let logLines=[];
 function say(t){logLines.push(t);if(logLines.length>2)logLines.shift();}
 
-function effCost(o,c){return Math.max(0,c.def.cost-(G.discount[o]?1:0)+(G.surcharge[o]||0));}
+// Gadalka's surcharge applies only on the turn recorded in surchargeTurn (the turn after its reveal).
+function surchargeOf(o){return G.surchargeTurn[o]===G.turn?(G.surcharge[o]||0):0;}
+function effCost(o,c){return Math.max(0,c.def.cost-(G.discount[o]?1:0)+surchargeOf(o));}
 function capOf(l,turn=G.turn){const L=loc(l);return L&&!locationRuleDisabled(l,turn)&&L.cap?L.cap:4;}
 function canPlay(o,l,turn=G.turn){if(G.blockedUntil[o][l]===turn)return false;const L=loc(l);if(L&&!locationRuleDisabled(l,turn)&&L.canPlay&&!L.canPlay(turn))return false;
  return G.board[l].filter(c=>c.owner===o).length<capOf(l,turn);}
 function moveCard(c,l){if(!c||c.lane<0||c.lane===l||!canPlay(c.owner,l))return false;const from=G.board[c.lane],i=from.indexOf(c);if(i<0)return false;from.splice(i,1);G.board[l].push(c);c.lane=l;say(`↔️ «${c.def.name}» перемещена в ${loc(l).name}`);return true;}
 function place(o,c,l){
  if(gameMode==='tutorial'&&!Tutorial.beforePlace(o,c,l))return false;
- const cost=effCost(o,c);c.paid=cost;c.usedDisc=!!G.discount[o]&&c.def.cost>0;c.usedSurcharge=(G.surcharge[o]||0)>0;if(c.usedDisc)G.discount[o]=0;if(c.usedSurcharge)G.surcharge[o]=0;
+ const cost=effCost(o,c);c.paid=cost;c.usedDisc=!!G.discount[o]&&c.def.cost>0;c.usedSurcharge=surchargeOf(o)>0;if(c.usedDisc)G.discount[o]=0;if(c.usedSurcharge)G.surcharge[o]=0;
  G.spent[o]+=cost;G.hand[o].splice(G.hand[o].indexOf(c),1);c.lane=l;c.pending=true;G.board[l].push(c);
  if(gameMode==='tutorial'&&o==='p')Tutorial.placed();
  return true;
@@ -129,6 +131,7 @@ function unplace(c){if(gameMode==='tutorial'&&(!c.pending||G.phase!=='plan'))ret
 
 function startTurn(){
  G.turn++;G.spent={p:0,e:0};
+ for(const o of ['p','e'])if(G.surchargeTurn[o]!==G.turn)G.surcharge[o]=0;
  if(G.turn<=3){G.locRev[G.turn-1]=true;}
  draw('p');draw('e');
  if(gameMode==='tutorial'){Tutorial.turn();Tutorial.opponent();}else aiPlan('e');
@@ -360,7 +363,7 @@ function render(){
  $('board').innerHTML=b;
  $('log').textContent=logLines.join(' · ');
  const left=G.turn-G.spent.p;
- $('energy').textContent=`Энергия ${left}/${G.turn}${G.surcharge.p?' · +1 к следующей карте':''}`;
+ $('energy').textContent=`Энергия ${left}/${G.turn}${surchargeOf('p')?' · +1 к следующей карте':''}`;
  $('end').disabled=G.phase!=='plan';
  $('end').textContent=G.phase==='plan'?(G.turn===6?'Финальный ход':'Завершить ход'):'Раскрытие…';
  $('hand').innerHTML=G.hand.p.map(c=>{const ec=effCost('p',c);
