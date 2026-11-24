@@ -39,3 +39,16 @@ jobs:
           node scripts/check-menu-remediation.cjs
       - name: Run PWA cache regressions
         run: node scripts/check-pwa-navigation-cache.cjs
+      # GIFTED-004B-CI (#44). The Novice reference is the fixed commit 2923eaf (AI_BASELINE.baseCommit
+      # in game.js), never the moving HEAD. The checkout is shallow, so that one commit is fetched
+      # explicitly with the read-only token; a missing commit makes the check fail.
+      - name: Fetch fixed AI baseline commit (novice-1)
+        run: git fetch --no-tags --depth=1 origin 2923eafca24d8b23ec0b3de71306ca555919b782
+      - name: Run AI architecture and Novice baseline checks
+        run: node scripts/check-ai-architecture.cjs 2923eafca24d8b23ec0b3de71306ca555919b782
+      - name: Run Tactician checks
+        run: node scripts/check-tactician.cjs
+      - name: Run AI mutation checks
+        run: node scripts/check-ai-mutations.cjs
+      - name: Run balance simulator check
+        run: node scripts/check-simulate-balance.cjs
