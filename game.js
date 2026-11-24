@@ -262,14 +262,19 @@ async function resolveAstroCard(c){
  }
 }
 /* ================= РАСКРЫТИЕ ================= */
+// GIFTED-003 (#38): the side with more total power of already revealed cards (same values as the
+// lane scores) reveals all its cards first; an exact tie is decided once per turn, 50/50.
+function initiative(){
+ let p=0,e=0;for(let l=0;l<3;l++){p+=laneTotal(l,'p');e+=laneTotal(l,'e');}
+ return p!==e?(p>e?'p':'e'):(Math.random()<.5?'p':'e');
+}
 const sleep=ms=>FAST?Promise.resolve():new Promise(r=>setTimeout(r,ms));
 async function endTurn(){
  if(G.phase!=='plan')return;
  if(gameMode==='tutorial'&&!Tutorial.canEnd()){tutorialState.error='Сначала выполни подсвеченное действие.';render();return;}
  const session=G;
  G.phase='reveal';G.sel=null;render();
- let lead=0;for(let l=0;l<3;l++){const w=laneWinner(l);if(w==='p')lead++;else if(w==='e')lead--;}
- const first=lead<0?'e':'p';
+ const first=initiative();
  say(first==='p'?'Твои карты раскрываются первыми':'Карты врага раскрываются первыми');
  const order=[];
  const pend=o=>{const r=[];G.board.forEach(l=>l.forEach(c=>{if(c.pending&&c.owner===o)r.push(c);}));return r.sort((a,b)=>a.uid-b.uid);};
@@ -436,7 +441,7 @@ function renderCoach(){
  if(!tutorialActive||!G)return;
  let title,body,target;
  if(G.phase==='over'){title='Матч завершён';body='Сравни силу в трёх локациях. При равенстве числа выигранных локаций решает общая сила.';}
- else if(G.phase==='reveal'){title='Карты раскрываются';body='Теперь срабатывают эффекты карт и локаций. Следи за изменением силы.';}
+ else if(G.phase==='reveal'){title='Карты раскрываются';body='Первой раскрывает карты сторона с большей общей силой на поле, при равенстве — случайно. Срабатывают эффекты карт и локаций.';}
  else if(tutorialStep>=4){title=`Ход ${G.turn} из 6`;body='Энергия обновилась. Локации открываются на ходах 1–3. Забери большинство; на Кривой арене выигрывает меньшая сила.';target='board';}
  else if(!G.hand.p.some(c=>effCost('p',c)<=G.turn-G.spent.p)&&!G.board.some(l=>l.some(c=>c.owner==='p'&&c.pending))){title='Сейчас не хватает энергии';body='Можно пропустить ход. На следующем ходу энергии станет больше, и ты возьмёшь ещё карту.';target='end';}
  else if(tutorialStep===2){title='Попробуй вернуть карту';body='До раскрытия нажми на свою выложенную карту или потяни её вниз в руку. Энергия вернётся.';target='board';}
