@@ -23,5 +23,15 @@ const strip=({elapsedSeconds,...rest})=>JSON.stringify(rest);
  const f=a.factions;assert.equal(f.eng.wins+f.ast.wins+f.kee.wins+a.rows.reduce((n,r)=>n+r.draws,0),a.totalGames);
  assert.equal(strip(a),strip(b),'same seed must reproduce identical results');
  assert.notEqual(JSON.stringify(c.rows),JSON.stringify(a.rows),'a different seed must change the sample');
- console.log(`PASS: simulator ${a.totalGames} games/run (seed ${seed}), 3 pairs x 2 seats, counters consistent, same seed identical, seed ${seed+1} differs`);
+ // GIFTED-004A (#40): AI chosen independently per seat, default Novice on both.
+ assert.deepEqual(a.ai,{p:'novice',e:'novice'});
+ const setup=api=>api.registerAiStrategy({id:'pass',version:'test-1',plan(){}});
+ const pPass=await simulate('game.js',20,seed,{ai:{p:'pass'},setup}),ePass=await simulate('game.js',20,seed,{ai:{e:'pass'},setup});
+ assert.deepEqual(pPass.ai,{p:'pass',e:'novice'});assert.deepEqual(ePass.ai,{p:'novice',e:'pass'});
+ const seatWins=(r,seat)=>r.rows.reduce((n,row)=>n+row.sides.reduce((m,sd)=>m+(seat==='p'?(sd.player===row.a?sd.winsA:sd.winsB):(sd.opponent===row.a?sd.winsA:sd.winsB)),0),0);
+ assert(seatWins(pPass,'e')>seatWins(pPass,'p'),'a passing p seat must lose more than the Novice e seat');
+ assert(seatWins(ePass,'p')>seatWins(ePass,'e'),'a passing e seat must lose more than the Novice p seat');
+ assert.equal(strip(await simulate('game.js',perPair,seed,'p=novice,e=novice')),strip(a),'explicit Novice equals the default');
+ await assert.rejects(simulate('game.js',2,seed,{ai:{e:'missing'}}),/Unknown AI strategy/);
+ console.log(`PASS: simulator ${a.totalGames} games/run (seed ${seed}), 3 pairs x 2 seats, counters consistent, same seed identical, seed ${seed+1} differs; AI per seat (Novice default, independent p/e)`);
 })().catch(e=>{console.error(e);process.exitCode=1});

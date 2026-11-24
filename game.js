@@ -134,13 +134,72 @@ function startTurn(){
  for(const o of ['p','e'])if(G.surchargeTurn[o]!==G.turn)G.surcharge[o]=0;
  if(G.turn<=3){G.locRev[G.turn-1]=true;}
  draw('p');draw('e');
+ // The planning phase starts before the opponent plans, so strategies observe phase 'plan'
+ // and can act through aiContext().play() on every turn (GIFTED-004A). Novice ignores the phase.
+ G.phase='plan';
  if(gameMode==='tutorial'){Tutorial.turn();Tutorial.opponent();}else aiPlan('e');
- G.phase='plan';G.sel=null;
+ G.sel=null;
  render();
 }
 
 /* ================= ИИ ================= */
-function aiPlan(o){
+// GIFTED-004A (#40): planning and automatic target choice go through a strategy chosen per side.
+// 'novice' is the unchanged legacy AI and the fixed reference (baseline main 2923eaf): it reads the
+// engine state directly, so its calls, scores and Math.random order are exactly as before.
+// Future strategies (004B Tactician, 004C Strategist) get only observe(side) and legal actions.
+const AI_BASELINE={id:'novice',version:'novice-1',baseCommit:'2923eafca24d8b23ec0b3de71306ca555919b782'};
+const AI_STRATEGIES={};
+const aiSides={p:AI_BASELINE.id,e:AI_BASELINE.id};
+function registerAiStrategy(s){
+ if(!s||typeof s.id!=='string'||!s.id||typeof s.version!=='string'||typeof s.plan!=='function')throw Error('Invalid AI strategy');
+ if(AI_STRATEGIES[s.id])throw Error('AI strategy already registered: '+s.id);
+ AI_STRATEGIES[s.id]=Object.freeze({...s});return AI_STRATEGIES[s.id];
+}
+function setAiStrategy(side,id){if(side!=='p'&&side!=='e')throw Error('Invalid side');if(!AI_STRATEGIES[id])throw Error('Unknown AI strategy: '+id);aiSides[side]=id;}
+function aiStrategy(o){return AI_STRATEGIES[aiSides[o]];}
+function aiPlan(o){const s=aiStrategy(o);if(s.legacy)return s.plan(o);return s.plan(aiContext(o));}
+// Information available to side o: its own hand, the public board and what the rules have revealed.
+// Never included: the opponent's hand or face-down cards (only their count), any deck order or
+// content, unrevealed locations, card uids of hidden cards, or the random number state.
+function observe(o){
+ const foe=other(o),pub=c=>({uid:c.uid,owner:c.owner===o?'me':'foe',id:c.def.id,power:power(c),buff:c.buff});
+ return JSON.parse(JSON.stringify({
+  side:o,turn:G.turn,phase:G.phase,mode:gameMode,energy:G.turn-G.spent[o],
+  me:{hand:G.hand[o].map(c=>({uid:c.uid,id:c.def.id,cost:effCost(o,c),baseCost:c.def.cost,power:c.def.power+c.buff})),
+   deckCount:G.deck[o].length,discount:G.discount[o],surcharge:surchargeOf(o)},
+  foe:{handCount:G.hand[foe].length,deckCount:G.deck[foe].length,discount:G.discount[foe],surcharge:surchargeOf(foe)},
+  lanes:[0,1,2].map(l=>({lane:l,location:G.locRev[l]?G.locs[l].id:null,ruleDisabled:G.locRev[l]&&locationRuleDisabled(l),
+   canPlay:canPlay(o,l),foeCanPlay:canPlay(foe,l),blockedNextTurn:{me:G.blockedUntil[o][l]===G.turn+1,foe:G.blockedUntil[foe][l]===G.turn+1},
+   trap:{me:G.trap[l][o],foe:G.trap[l][foe]},total:{me:laneTotal(l,o),foe:laneTotal(l,foe)},
+   revealed:G.board[l].filter(c=>c.revealed).map(pub),
+   myPending:G.board[l].filter(c=>c.owner===o&&c.pending).map(c=>({uid:c.uid,id:c.def.id,power:c.def.power+c.buff})),
+   foePendingCount:G.board[l].filter(c=>c.owner===foe&&c.pending).length}))
+ }));
+}
+// Legal actions for a non-legacy strategy. play() validates and refuses anything the player could not do.
+function aiContext(o){
+ return {side:o,observation:observe(o),
+  play(uid,lane){
+   if(G.phase!=='plan'||gameMode!=='normal'||![0,1,2].includes(lane))return false;
+   const c=G.hand[o].find(x=>x.uid===uid);
+   if(!c||!canPlay(o,lane)||effCost(o,c)>G.turn-G.spent[o])return false;
+   return place(o,c,lane);
+  },
+  observe:()=>observe(o)};
+}
+// Automatic choices of card effects (no DOM or an AI side). The legacy strategy keeps the original
+// score functions and first-best tie rule; others receive public option descriptors and return an index.
+function aiChoose(owner,kind,title,options,score,optional){
+ const s=aiStrategy(owner);
+ if(s.legacy)return kind==='lane'?options.reduce((best,l)=>best===null||score(l)>score(best)?l:best,null):options.reduce((best,c)=>!best||score(c)>score(best)?c:best,null);
+ if(typeof s.choose!=='function')throw Error('AI strategy has no choose(): '+s.id);
+ const desc=options.map(x=>kind==='lane'?{lane:x}:{uid:x.uid,id:x.def.id,cost:x.def.cost,power:x.revealed?power(x):x.def.power+x.buff,lane:x.lane});
+ const i=s.choose(aiContext(owner),{kind,title,optional,options:desc});
+ if(i===null&&optional)return null;
+ if(!Number.isInteger(i)||i<0||i>=options.length)throw Error('AI strategy returned an invalid choice: '+s.id);
+ return options[i];
+}
+function noviceAiPlan(o){
  const foe=other(o);
  for(let guard=0;guard<10;guard++){
   const energy=G.turn-G.spent[o];const opts=[];
@@ -164,6 +223,8 @@ function aiPlan(o){
  }
 }
 
+registerAiStrategy({...AI_BASELINE,name:'Новичок',legacy:true,plan:noviceAiPlan});
+
 /* ================= ПРОКРУТКА КОЛОДЫ АСТРОМАНТКИ ================= */
 let astroChoice=null;
 function finishAstroChoice(value){
@@ -181,7 +242,7 @@ function astroChoiceHtml(){
 function chooseAstroCard(title,cards,owner,scoreFn,optional=false){
  if(!cards.length)return Promise.resolve(null);
  const score=scoreFn||((c)=>c.def.power+c.def.cost*.75);
- if(owner!=='p'||!HAS_DOM)return Promise.resolve(cards.reduce((best,c)=>!best||score(c)>score(best)?c:best,null));
+ if(owner!=='p'||!HAS_DOM)return Promise.resolve(aiChoose(owner,'card',title,cards,score,optional));
  const boardCards=cards.every(c=>c.revealed&&c.lane>=0);
  return new Promise(resolve=>{
   astroChoice={kind:boardCards?'board-card':'list-card',title,cards,resolve,optional};
@@ -200,7 +261,7 @@ function takeTopOptions(owner,count,chosen,restToBottom=true){
 function chooseAstroLane(title,lanes,owner,scoreFn,optional=false){
  if(!lanes.length)return Promise.resolve(null);
  const score=scoreFn||(()=>0);
- if(owner!=='p'||!HAS_DOM)return Promise.resolve(lanes.reduce((best,l)=>best===null||score(l)>score(best)?l:best,null));
+ if(owner!=='p'||!HAS_DOM)return Promise.resolve(aiChoose(owner,'lane',title,lanes,score,optional));
  return new Promise(resolve=>{
   astroChoice={kind:'lane',title,lanes,resolve,optional};
   G.info=null;render();
