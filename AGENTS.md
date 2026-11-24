@@ -18,7 +18,7 @@
 - Do not weaken tests by removing material assertions. When changing tests, explain retained and added coverage.
 - Keep changes focused. Do not include unrelated edits or generated secrets.
 - Infrastructure files (`.github/workflows/**`, `.github/CODEOWNERS`, `AGENTS.md`, and autonomy-policy docs) require Product Owner review and must never be auto-merged.
-- A Builder cannot approve its own work. Merge only when the applicable policy, independent review, current-SHA checks, and repository protections all permit it.
+- A Builder cannot approve or merge its own work. Follow docs/ORCHESTRATOR_POLICY.md for independent inspection recorded against the current SHA, required checks, authorization and repository protections. Formal GitHub approval by a second account is not required under the Alpha policy.
 - Do not merge Level 1/2 work or make product decisions on behalf of the Architect/Product Owner.
 
 ## Report format
