@@ -189,12 +189,12 @@ function aiContext(o){
 }
 // Automatic choices of card effects (no DOM or an AI side). The legacy strategy keeps the original
 // score functions and first-best tie rule; others receive public option descriptors and return an index.
-function aiChoose(owner,kind,title,options,score,optional){
+function aiChoose(owner,kind,title,options,score,optional,effect=null){
  const s=aiStrategy(owner);
  if(s.legacy)return kind==='lane'?options.reduce((best,l)=>best===null||score(l)>score(best)?l:best,null):options.reduce((best,c)=>!best||score(c)>score(best)?c:best,null);
  if(typeof s.choose!=='function')throw Error('AI strategy has no choose(): '+s.id);
  const desc=options.map(x=>kind==='lane'?{lane:x}:{uid:x.uid,id:x.def.id,cost:x.def.cost,power:x.revealed?power(x):x.def.power+x.buff,lane:x.lane});
- const i=s.choose(aiContext(owner),{kind,title,optional,options:desc});
+ const i=s.choose(aiContext(owner),{kind,title,optional,options:desc,...(effect?{effect}:{})});
  if(i===null&&optional)return null;
  if(!Number.isInteger(i)||i<0||i>=options.length)throw Error('AI strategy returned an invalid choice: '+s.id);
  return options[i];
@@ -225,6 +225,153 @@ function noviceAiPlan(o){
 
 registerAiStrategy({...AI_BASELINE,name:'Новичок',legacy:true,plan:noviceAiPlan});
 
+/* ================= ИИ: Тактик (GIFTED-004B) ================= */
+// tactician-1 optimises the current turn only. It rebuilds the position from observe(side), tries
+// every legal set of plays of this turn (budget TACTICIAN.maxPlans), reveals each in the engine
+// sandbox with the real rules and scores the result. Unknown opponent cards are never filled in:
+// the opponent's face-down cards of this turn are absent from the sandbox and only widen the
+// uncertainty of their lane; its hand and both decks are placeholders of the right size.
+// It does not forecast opponent moves or future turns (004C) and never reads hidden state or the RNG.
+const TACTICIAN={id:'tactician',version:'tactician-1',maxPlans:2000,samples:2};
+const AI_UNKNOWN_CARD=Object.freeze({id:'?',f:'?',name:'?',cost:99,power:0,icon:'?',text:''});
+const AI_UNKNOWN_LOC=Object.freeze({id:'?',name:'?',icon:'?',text:''});
+const tacticianStats={plans:0,truncated:0,calls:0};
+function tacticianState(obs){
+ const o=obs.side,f=other(o),T=obs.turn;let fake=-1;
+ const card=(id,owner,x={})=>({uid:x.uid??fake--,def:id==='?'?AI_UNKNOWN_CARD:CARDS.find(d=>d.id===id),owner,lane:x.lane??-1,buff:x.buff||0,
+  revealed:!!x.revealed,pending:!!x.pending,paid:0,usedDisc:false,usedSurcharge:false,flash:null});
+ const ph=(n,owner)=>Array.from({length:n},()=>card('?',owner));
+ const st={turn:T,fac:{p:null,e:null},phase:'plan',sel:null,info:null,busy:false,board:[[],[],[]],
+  hand:{[o]:obs.me.hand.map(h=>card(h.id,o,{uid:h.uid,buff:h.power-CARDS.find(d=>d.id===h.id).power})),[f]:ph(obs.foe.handCount,f)},
+  deck:{[o]:ph(obs.me.deckCount,o),[f]:ph(obs.foe.deckCount,f)},discard:{p:[],e:[]},
+  locs:obs.lanes.map(l=>l.location?LOCS.find(x=>x.id===l.location):AI_UNKNOWN_LOC),locRev:obs.lanes.map(l=>!!l.location),
+  spent:{[o]:T-obs.energy,[f]:0},discount:{[o]:obs.me.discount,[f]:obs.foe.discount},
+  surcharge:{[o]:obs.me.surcharge,[f]:obs.foe.surcharge},surchargeTurn:{[o]:obs.me.surcharge?T:0,[f]:obs.foe.surcharge?T:0},
+  blockedUntil:{[o]:obs.lanes.map(l=>l.canPlay?(l.blockedNextTurn.me?T+1:0):T),[f]:obs.lanes.map(l=>l.foeCanPlay?(l.blockedNextTurn.foe?T+1:0):T)},
+  locDisabledUntil:obs.lanes.map(l=>l.ruleDisabled?T:0),trap:obs.lanes.map(l=>({[o]:l.trap.me,[f]:l.trap.foe}))};
+ for(const l of obs.lanes){
+  for(const c of l.revealed)st.board[l.lane].push(card(c.id,c.owner==='me'?o:f,{uid:c.uid,lane:l.lane,buff:c.buff,revealed:true}));
+  for(const c of l.myPending)st.board[l.lane].push(card(c.id,o,{uid:c.uid,lane:l.lane,buff:c.power-CARDS.find(d=>d.id===c.id).power,pending:true}));
+ }
+ return st;
+}
+function tacticianClone(st){
+ const cc=c=>({...c}),side=x=>({p:x.p.map(cc),e:x.e.map(cc)});
+ return {...st,board:st.board.map(l=>l.map(cc)),hand:side(st.hand),deck:side(st.deck),discard:{p:[],e:[]},
+  locs:[...st.locs],locRev:[...st.locRev],spent:{...st.spent},discount:{...st.discount},surcharge:{...st.surcharge},
+  surchargeTurn:{...st.surchargeTurn},blockedUntil:{p:[...st.blockedUntil.p],e:[...st.blockedUntil.e]},
+  locDisabledUntil:[...st.locDisabledUntil],trap:st.trap.map(t=>({...t}))};
+}
+const tSig=x=>1/(1+Math.exp(-x));
+// If the opponent has no face-down card yet but holds cards, it may still act this turn (the AI side
+// plans before the player). Its possible cards are spread as uncertainty over lanes it can play in;
+// no specific card or lane is predicted.
+function tacticianFoeToAct(obs,l){
+ if(obs.lanes.some(x=>x.foePendingCount)||!obs.foe.handCount||!obs.lanes[l].foeCanPlay)return 0;
+ const open=obs.lanes.filter(x=>x.foeCanPlay).length;
+ return Math.min(obs.foe.handCount,Math.ceil(obs.turn/2))/open;
+}
+// Lane outcome model: margin over an uncertainty that shrinks as the match approaches its end.
+function tacticianLane(obs,l,o){
+ const f=other(o),me=laneTotal(l,o),fo=laneTotal(l,f),low=loc(l)&&!locationRuleDisabled(l)&&loc(l).low;
+ const m=low?fo-me:me-fo,left=6-obs.turn,hidden=obs.lanes[l].foePendingCount+tacticianFoeToAct(obs,l);
+ const u=left?1.5+2.4*left+2.5*hidden+(G.locRev[l]?0:1):0.5+2.5*hidden;
+ if(!left&&!hidden)return {m,raw:me-fo,win:m>0?1:0,tie:m===0?1:0,u:0};
+ const win=tSig(1.7*m/u);return {m,raw:me-fo,win,tie:0,u};
+}
+// Probability-like value of the match result after this turn: two locations first, total power on a lane draw.
+function tacticianValue(obs,o,first){
+ const lanes=[0,1,2].map(l=>tacticianLane(obs,l,o)),left=6-obs.turn;
+ const raw=lanes.reduce((s,x)=>s+x.raw,0),spread=lanes.reduce((s,x)=>s+(x.u||0.5),0);
+ const totalWin=left||lanes.some(x=>x.u)?tSig(1.7*raw/spread):(raw>0?1:raw<0?0:.5);
+ let value=0;
+ for(let k=0;k<27;k++){let pr=1,w=0,lo=0;
+  for(let l=0,x=k;l<3;l++,x=Math.floor(x/3)){const L=lanes[l],r=x%3,lose=1-L.win-L.tie;
+   pr*=r===0?L.win:r===1?lose:L.tie;if(r===0)w++;if(r===1)lo++;}
+  if(pr)value+=pr*(w>lo?1:w<lo?0:totalWin);
+ }
+ const f=other(o),mine=allRev(o);
+ const dev=[.04,.03,.02,.01,0,0][obs.turn-1]*mine.reduce((s,c)=>s+power(c),0)/10;
+ const growth=left*.004*mine.filter(c=>c.def.endTurn).length;
+ const cards=left*.006*(G.hand[o].filter(c=>c.def!==AI_UNKNOWN_CARD).reduce((s,c)=>s+Math.min(c.def.power,8),0)/8+G.hand[o].filter(c=>c.def===AI_UNKNOWN_CARD).length*.5);
+ const foeCards=left*.006*G.hand[f].length*.5;
+ // Space: a full capacity-limited location (Tower) cannot take cards on later turns.
+ const slots=-left*.004*[0,1,2].filter(l=>G.locRev[l]&&loc(l).cap&&!locationRuleDisabled(l)&&G.board[l].filter(c=>c.owner===o).length>=capOf(l)).length;
+ // Initiative: revealing second lets this turn's effects also see the opponent's new cards.
+ const hidden=obs.lanes.reduce((s,l)=>s+l.foePendingCount+tacticianFoeToAct(obs,l.lane),0),init=hidden?(first===o?-.004:.004)*hidden:0;
+ return value+dev+growth+cards-foeCards+slots+init;
+}
+function tacticianEvaluate(obs,base,plan){
+ const o=obs.side,f=other(o);let total=0,n=0;
+ for(let s=1;s<=TACTICIAN.samples;s++){
+  const st=tacticianClone(base);
+  total+=runAiSandbox(st,0x9e3779b1*s+plan.length,()=>{
+   for(const [uid,l] of plan){const c=G.hand[o].find(x=>x.uid===uid);place(o,c,l);}
+   G.phase='reveal';
+   let tp=0,te=0;for(let l=0;l<3;l++){tp+=laneTotal(l,'p');te+=laneTotal(l,'e');}
+   const orders=tp!==te?[tp>te?'p':'e']:['p','e'];let v=0;
+   for(const first of orders){const branch=orders.length>1?tacticianClone(G):G;const keep=G;G=branch;
+    sandboxReveal(first,q=>tacticianPick(q.owner,q,true));v+=tacticianValue(obs,o,first);G=keep;}
+   return v/orders.length;
+  });n++;
+ }
+ return total/n;
+}
+function tacticianPlans(obs,base){
+ const o=obs.side,plans=[[]];let truncated=false;
+ runAiSandbox(tacticianClone(base),1,()=>{
+  const ids=G.hand[o].map(c=>c.uid).sort((a,b)=>a-b);
+  const dfs=(i,plan)=>{
+   if(i===ids.length)return;
+   for(let j=i;j<ids.length;j++){
+    const c=G.hand[o].find(x=>x.uid===ids[j]);
+    if(!c||effCost(o,c)>G.turn-G.spent[o])continue;
+    for(let l=0;l<3;l++){
+     if(!canPlay(o,l))continue;
+     if(plans.length>=TACTICIAN.maxPlans){truncated=true;return;}
+     place(o,c,l);const next=[...plan,[c.uid,l]];plans.push(next);dfs(j+1,next);unplace(c);
+     if(truncated)return;
+    }
+   }
+  };
+  dfs(0,[]);
+ });
+ tacticianStats.plans+=plans.length;if(truncated)tacticianStats.truncated++;
+ return plans;
+}
+function tacticianPlan(ctx){
+ tacticianStats.calls++;
+ const obs=ctx.observation;if(obs.phase!=='plan')return;
+ const base=tacticianState(obs);let best=null,bestV=-Infinity;
+ for(const plan of tacticianPlans(obs,base)){const v=tacticianEvaluate(obs,base,plan);if(v>bestV+1e-9){bestV=v;best=plan;}}
+ for(const [uid,l] of best||[])if(!ctx.play(uid,l))break;
+}
+// Target choice for the real match (descriptors) and for the sandbox (engine objects): same policy.
+let tacticianMove=null;
+function tacticianPick(owner,req,sandbox){
+ const obs=observe(owner),opts=req.options,lanes=obs.lanes,margin=l=>lanes[l].total.me-lanes[l].total.foe;
+ const P=x=>sandbox?(req.kind==='lane'?{lane:x}:{uid:x.uid,id:x.def.id,cost:x.def.cost,power:x.revealed?power(x):x.def.power+x.buff,lane:x.lane}):x;
+ const d=opts.map(P),argmax=f=>{let b=0,bv=-Infinity;d.forEach((x,i)=>{const v=f(x);if(v>bv){bv=v;b=i;}});return b;};
+ const pick=i=>i===null?null:(sandbox?opts[i]:i);
+ switch(req.effect){
+  case 'a5':return pick(argmax(x=>-Math.abs(margin(x.lane))));
+  case 'a7':return pick(argmax(x=>{const L=lanes[x.lane],id=L.location,mine=L.revealed.filter(c=>c.owner==='me').length,theirs=L.revealed.length-mine;
+   return id==='arena'?(L.total.me>L.total.foe?3:-1):id==='waste'?(mine>theirs?1:0):id==='tower'?(mine>=2?1:0):id==='fog'?(obs.turn===4?1:0):id==='observatory'?(theirs>mine?.5:0):0;}));
+  case 'a9':return pick(argmax(x=>-Math.abs(margin(x.lane)+1)));
+  case 'a10':return req.title.includes('соперника')?pick(argmax(x=>x.cost+x.power*.5)):pick(argmax(x=>x.power-x.cost*.3+(x.cost<=obs.turn+1?2:0)));
+  case 'a12':{
+   if(req.kind==='card'){let best=null,bv=0;
+    d.forEach((x,i)=>{for(const l of [0,1,2]){if(l===x.lane||!lanes[l].location||!lanes[l].canPlay)continue;
+     const g=[0,1,2].reduce((s,k)=>{const m=margin(k)+(k===l?x.power:k===x.lane?-x.power:0),m0=margin(k);return s+tSig(m/2)-tSig(m0/2);},0);
+     if(g>bv){bv=g;best=i;tacticianMove={uid:x.uid,lane:l};}}});
+    if(best===null)tacticianMove=null;return pick(best);}
+   const i=tacticianMove?d.findIndex(x=>x.lane===tacticianMove.lane):-1;tacticianMove=null;return pick(i<0?null:i);
+  }
+ }
+ return req.optional?null:pick(0);
+}
+registerAiStrategy({id:TACTICIAN.id,version:TACTICIAN.version,name:'Тактик',plan:tacticianPlan,choose:(ctx,req)=>tacticianPick(ctx.side,req,false)});
+
 /* ================= ПРОКРУТКА КОЛОДЫ АСТРОМАНТКИ ================= */
 let astroChoice=null;
 function finishAstroChoice(value){
@@ -239,10 +386,10 @@ function astroChoiceHtml(){
  const prompt=c.kind==='board-card'?'Нажми на подсвеченную карту на столе.':c.kind==='lane'?'Нажми на одну из подсвеченных локаций.':'Выбери карту из списка.';
  return `<section class="astro-inline"><header><b>${title}</b><span>${prompt}</span></header>${options}${c.optional?'<button class="astro-skip" type="button">Оставить как есть</button>':''}</section>`;
 }
-function chooseAstroCard(title,cards,owner,scoreFn,optional=false){
+function chooseAstroCard(title,cards,owner,scoreFn,optional=false,effect=null){
  if(!cards.length)return Promise.resolve(null);
  const score=scoreFn||((c)=>c.def.power+c.def.cost*.75);
- if(owner!=='p'||!HAS_DOM)return Promise.resolve(aiChoose(owner,'card',title,cards,score,optional));
+ if(owner!=='p'||!HAS_DOM)return Promise.resolve(aiChoose(owner,'card',title,cards,score,optional,effect));
  const boardCards=cards.every(c=>c.revealed&&c.lane>=0);
  return new Promise(resolve=>{
   astroChoice={kind:boardCards?'board-card':'list-card',title,cards,resolve,optional};
@@ -258,10 +405,10 @@ function takeTopOptions(owner,count,chosen,restToBottom=true){
  if(restToBottom)deck.unshift(...rest);else deck.push(...rest);
  return c;
 }
-function chooseAstroLane(title,lanes,owner,scoreFn,optional=false){
+function chooseAstroLane(title,lanes,owner,scoreFn,optional=false,effect=null){
  if(!lanes.length)return Promise.resolve(null);
  const score=scoreFn||(()=>0);
- if(owner!=='p'||!HAS_DOM)return Promise.resolve(aiChoose(owner,'lane',title,lanes,score,optional));
+ if(owner!=='p'||!HAS_DOM)return Promise.resolve(aiChoose(owner,'lane',title,lanes,score,optional,effect));
  return new Promise(resolve=>{
   astroChoice={kind:'lane',title,lanes,resolve,optional};
   G.info=null;render();
@@ -275,52 +422,59 @@ function astroLaneScore(l,owner,mode){
  return -Math.abs(diff)+(laneWinner(l)===owner?1:0);
 }
 function openMoveLanes(owner,from){return [0,1,2].filter(l=>G.locRev[l]&&l!==from&&canPlay(owner,l));}
-async function resolveAstroCard(c){
+// GIFTED-004B (#42): Astromancer effects are one generator of choice requests, so the same rules run
+// in the real match (resolveAstroCard waits for the UI/AI choice) and synchronously in the AI sandbox.
+function* astroSteps(c){
  const o=c.owner,foe=other(o),id=c.def.id;
  if(id==='a5'&&G.turn<6){
   const lanes=[0,1,2].filter(l=>G.locRev[l]&&canPlay(foe,l,G.turn+1));
-  const target=await chooseAstroLane('Лунная сова: выбери локацию для блока',lanes,o,l=>astroLaneScore(l,o,'block'));
+  const target=yield {kind:'lane',effect:id,title:'Лунная сова: выбери локацию для блока',options:lanes,owner:o,score:l=>astroLaneScore(l,o,'block')};
   if(target!==null){G.blockedUntil[foe][target]=G.turn+1;say(`⛔ Соперник не сможет играть в ${loc(target).name} на следующем ходу`);}
  }
  if(id==='a7'&&G.turn<6){
   const lanes=[0,1,2].filter(l=>G.locRev[l]);
-  const target=await chooseAstroLane('Галактика: выбери правило для отключения',lanes,o,l=>astroLaneScore(l,o,'suppress'));
+  const target=yield {kind:'lane',effect:id,title:'Галактика: выбери правило для отключения',options:lanes,owner:o,score:l=>astroLaneScore(l,o,'suppress')};
   if(target!==null){G.locDisabledUntil[target]=G.turn+1;say(`⏸ Правило локации «${loc(target).name}» отключено на следующем ходу`);}
  }
  if(id==='a9'){
   for(const lane of [0,1,2].filter(l=>l!==c.lane)){
    const targets=cardsIn(lane,o);
    if(!targets.length)continue;
-   const target=await chooseAstroCard(`Колесо судьбы: выбери карту в локации «${loc(lane).name}»`,targets,o,t=>{
+   const target=yield {kind:'card',effect:id,title:`Колесо судьбы: выбери карту в локации «${loc(lane).name}»`,options:targets,owner:o,score:t=>{
     const diff=laneTotal(lane,o)-laneTotal(lane,foe);
     return -Math.abs(diff)+(diff<0?1:0)+(laneWinner(lane)===o?0.25:0);
-   });
+   }};
    if(target){buff(target,2);say(`🎡 «${target.def.name}» получила +2 силы`);}
   }
  }
  if(id==='a10'){
   const n=3,opts=G.deck[o].slice(-n);
-  if(opts.length){const choice=await chooseAstroCard('Астромантка: выбери карту',opts,o);takeTopOptions(o,n,()=>choice);}
+  if(opts.length){const choice=yield {kind:'card',effect:id,title:'Астромантка: выбери карту',options:opts,owner:o};takeTopOptions(o,n,()=>choice);}
   if(G.hand[foe].length){
-   const target=await chooseAstroCard('Астромантка: выбери карту соперника для сброса',G.hand[foe],o,x=>x.def.cost+power(x)*.5);
+   const target=yield {kind:'card',effect:id,title:'Астромантка: выбери карту соперника для сброса',options:G.hand[foe],owner:o,score:x=>x.def.cost+power(x)*.5};
    if(target){G.hand[foe].splice(G.hand[foe].indexOf(target),1);G.discard[foe].push(target);draw(foe);}
   }
  }
  if(id==='a12'){
   const sources=allRev(o).filter(t=>t!==c&&openMoveLanes(o,t.lane).length);
   if(sources.length){
-   const source=await chooseAstroCard('Сверхновая: выбери свою карту для перемещения',sources,o,t=>{
+   const source=yield {kind:'card',effect:id,title:'Сверхновая: выбери свою карту для перемещения',options:sources,owner:o,optional:true,score:t=>{
     const lanes=openMoveLanes(o,t.lane);
     const best=lanes.reduce((score,l)=>Math.max(score,astroLaneScore(l,o,'move')),0);
     return power(t)+best*.15;
-   },true);
+   }};
    if(source){
     const lanes=openMoveLanes(o,source.lane);
-    const target=await chooseAstroLane('Сверхновая: выбери новую локацию',lanes,o,l=>astroLaneScore(l,o,'move'),true);
+    const target=yield {kind:'lane',effect:id,title:'Сверхновая: выбери новую локацию',options:lanes,owner:o,optional:true,score:l=>astroLaneScore(l,o,'move')};
     if(target!==null)moveCard(source,target);
    }
   }
  }
+}
+async function resolveAstroCard(c){
+ const it=astroSteps(c);let r=it.next();
+ while(!r.done){const q=r.value;
+  r=it.next(await (q.kind==='lane'?chooseAstroLane(q.title,q.options,q.owner,q.score,q.optional,q.effect):chooseAstroCard(q.title,q.options,q.owner,q.score,q.optional,q.effect)));}
 }
 /* ================= РАСКРЫТИЕ ================= */
 // GIFTED-003 (#38): the side with more total power of already revealed cards (same values as the
@@ -328,6 +482,41 @@ async function resolveAstroCard(c){
 function initiative(){
  let p=0,e=0;for(let l=0;l<3;l++){p+=laneTotal(l,'p');e+=laneTotal(l,'e');}
  return p!==e?(p>e?'p':'e'):(Math.random()<.5?'p':'e');
+}
+// Reveal steps shared by the real match (endTurn) and the synchronous AI sandbox (GIFTED-004B).
+function revealOrder(first){
+ const pend=o=>{const r=[];G.board.forEach(l=>l.forEach(c=>{if(c.pending&&c.owner===o)r.push(c);}));return r.sort((a,b)=>a.uid-b.uid);};
+ return [...pend(first),...pend(other(first))];
+}
+function revealCard(c){
+ c.revealed=true;c.pending=false;c.revAt=now();
+ say(`${c.owner==='p'?'Ты':'Враг'}: «${c.def.name}»`);
+ const tr=G.trap[c.lane];if(tr[other(c.owner)]){tr[other(c.owner)]=false;buff(c,-3);say(`🪤 Капкан! «${c.def.name}» −3`);}
+ const L=loc(c.lane);if(L&&!locationRuleDisabled(c.lane)&&L.onPlay)L.onPlay(c);
+ if(c.def.onReveal&&c.lane>=0)c.def.onReveal(c);
+}
+const hasAstroChoice=c=>c.def.f==='ast'&&['a3','a5','a7','a9','a10','a12'].includes(c.def.id);
+function endOfTurnEffects(){
+ let any=false;
+ for(const c of allRev())if(c.def.endTurn){c.def.endTurn(c);any=true;}
+ for(let l=0;l<3;l++){const L=loc(l);if(L&&!locationRuleDisabled(l)&&L.endTurn){L.endTurn(l);any=true;}}
+ return any;
+}
+// Runs fn on a hypothetical state with its own random stream. The real G, uid counter, log and
+// Math.random are restored afterwards, so the sandbox cannot change the match or its RNG.
+function runAiSandbox(state,seed,fn){
+ const saved={G,UID,logLines,random:Math.random};let n=seed>>>0;
+ G=state;logLines=[];Math.random=()=>((n=(Math.imul(n,1664525)+1013904223)>>>0)/4294967296);
+ try{return fn();}finally{G=saved.G;UID=saved.UID;logLines=saved.logLines;Math.random=saved.random;}
+}
+// Synchronous reveal of the sandbox state in the given order, with the same rules as endTurn.
+function sandboxReveal(first,choose){
+ for(const c of revealOrder(first)){
+  if(c.lane<0)continue;
+  revealCard(c);
+  if(hasAstroChoice(c)){const it=astroSteps(c);let r=it.next();while(!r.done)r=it.next(r.value.options.length?choose(r.value):null);}
+ }
+ endOfTurnEffects();
 }
 const sleep=ms=>FAST?Promise.resolve():new Promise(r=>setTimeout(r,ms));
 async function endTurn(){
@@ -337,22 +526,13 @@ async function endTurn(){
  G.phase='reveal';G.sel=null;render();
  const first=initiative();
  say(first==='p'?'Твои карты раскрываются первыми':'Карты врага раскрываются первыми');
- const order=[];
- const pend=o=>{const r=[];G.board.forEach(l=>l.forEach(c=>{if(c.pending&&c.owner===o)r.push(c);}));return r.sort((a,b)=>a.uid-b.uid);};
- for(const o of [first,other(first)])order.push(...pend(o));
- for(const c of order){
+ for(const c of revealOrder(first)){
   if(c.lane<0)continue;
-  c.revealed=true;c.pending=false;c.revAt=now();
-  say(`${c.owner==='p'?'Ты':'Враг'}: «${c.def.name}»`);
-  const tr=G.trap[c.lane];if(tr[other(c.owner)]){tr[other(c.owner)]=false;buff(c,-3);say(`🪤 Капкан! «${c.def.name}» −3`);}
-  const L=loc(c.lane);if(L&&!locationRuleDisabled(c.lane)&&L.onPlay)L.onPlay(c);
-  if(c.def.onReveal&&c.lane>=0)c.def.onReveal(c);
-  if(c.def.f==='ast'&&['a3','a5','a7','a9','a10','a12'].includes(c.def.id))await resolveAstroCard(c);
+  revealCard(c);
+  if(hasAstroChoice(c))await resolveAstroCard(c);
   render();await sleep(650);if(G!==session)return;
  }
- let any=false;
- for(const c of allRev())if(c.def.endTurn){c.def.endTurn(c);any=true;}
- for(let l=0;l<3;l++){const L=loc(l);if(L&&!locationRuleDisabled(l)&&L.endTurn){L.endTurn(l);any=true;}}
+ const any=endOfTurnEffects();
  if(any){render();await sleep(500);if(G!==session)return;}
  if(gameMode==='tutorial'){Tutorial.afterReveal();return;}
  if(G.turn>=6)finish();else startTurn();
