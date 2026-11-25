@@ -10,11 +10,13 @@
 //     memory reset for a new match, same position -> same plan;
 //  5. PR #47 inspection: face-down opponent cards in sampled worlds are legal for its start-of-turn energy
 //     (discount/surcharge), unknown cards when no legal set exists;
-//  6. PR #47 inspection: destroyed revealed cards stay in the public history and never return to the unknown cards.
-// STRATEGIST_CHECK_SECTIONS=1,2,3,4,5,6 (default all) lets check-strategist-mutations.cjs show which section
+//  6. PR #47 inspection: destroyed revealed cards stay in the public history and never return to the unknown cards;
+//  7. PR #47 inspection (0ad641c): Spy copies — public hand/deck sizes kept, copies as separate instances,
+//     originals with a copied id not excluded (Keeper mirror), destroyed copies accounted for.
+// STRATEGIST_CHECK_SECTIONS=1,2,3,4,5,6,7 (default all) lets check-strategist-mutations.cjs show which section
 // detects a defect on its own.
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const SECTIONS=new Set((process.env.STRATEGIST_CHECK_SECTIONS||'1,2,3,4,5,6').split(','));
+const SECTIONS=new Set((process.env.STRATEGIST_CHECK_SECTIONS||'1,2,3,4,5,6,7').split(','));
 const SRC=fs.readFileSync('tutorial.js','utf8')+'\n'+fs.readFileSync('game.js','utf8');
 const lcg=seed=>{let n=seed>>>0;return ()=>((n=(Math.imul(n,1664525)+1013904223)>>>0)/4294967296);};
 function boot(seed=1){
@@ -151,14 +153,14 @@ async function replayTo(seed,faction,seat,turn){
   for(let seed=1;seed<=40;seed++){const t=boot(seed);
    t.run("registerAiStrategy({id:'hold',version:'test-1',legacy:true,plan(){}});setAiStrategy('e','hold');FAST=true;newGame('eng');G.board.forEach(l=>{for(let i=l.length-1;i>=0;i--)if(l[i].owner==='e')l.splice(i,1);});");
    t.run("const c=G.hand.e.find(x=>x.def.cost===1)||inst(CARDS.find(x=>x.id==='a1'),'e');if(!G.hand.e.includes(c))G.hand.e.push(c);G.spent.e=0;place('e',c,0);");
-   const costs=J(t,"(()=>{const obs=observe('p'),info=strategistRemember(obs),sets=strategistHiddenSets(CARDS.filter(d=>d.f===obs.foe.faction&&!info.known.foe.has(d.id)),1,info.budget.budget);return sets.map(s=>s[0].cost);})()");
+   const costs=J(t,"(()=>{const obs=observe('p'),info=strategistRemember(obs),u=strategistUnknown(obs,'foe',obs.foe.handCount+obs.foe.deckCount+1,obs.foe.deckCount),sets=strategistHiddenSets(u.originals,1,info.budget.budget);return sets.map(s=>s[0].cost);})()");
    assert(costs.length&&costs.every(c=>c<=1),`turn 1: only cost-1 cards are legal (seed ${seed}): ${costs}`);}
   // 5c. No legal set of unseen cards: unknown effect-free cards, never an impossible real card.
   {const t=boot(3);t.run("FAST=true;newGame('kee');");
    const r=J(t,`(()=>{const obs=observe('p');obs.foe.faction='eng';obs.lanes[0].foePendingCount=1;obs.lanes[1].foePendingCount=1;obs.turn=1;
-    const info={known:{me:new Set(),foe:new Set(CARDS.filter(d=>d.f==='eng'&&d.cost<=1).map(d=>d.id))},budget:{budget:1}};
-    const sets=strategistHiddenSets(CARDS.filter(d=>d.f==='eng'&&!info.known.foe.has(d.id)),2,1);
-    return runAiSandbox(tacticianClone(tacticianState(obs)),1,()=>strategistWorld(obs,tacticianClone(tacticianState(obs)),info,sets)).board.flat().filter(c=>c.owner==='e'&&c.pending).map(c=>c.def.id);})()`);
+    obs.foe.discard=CARDS.filter(d=>d.f==='eng'&&d.cost<=1).map(d=>d.id);obs.foe.deckCount=Math.max(0,12-obs.foe.discard.length-2-obs.foe.handCount);
+    const info={budget:{budget:1},held:[]};
+    return runAiSandbox(tacticianClone(tacticianState(obs)),1,()=>strategistWorld(obs,tacticianClone(tacticianState(obs)),info,[])).board.flat().filter(c=>c.owner==='e'&&c.pending).map(c=>c.def.id);})()`);
    assert.deepEqual(r,['?','?'],'no legal set: only unknown cards');}
   done.push(`legal face-down worlds (${worlds} sampled)`);
  }
@@ -175,12 +177,77 @@ async function replayTo(seed,faction,seat,turn){
    t.run("initiative=()=>'p'");await t.run('endTurn()');
    assert.equal(t.run("G.board.flat().some(c=>c.def.id==='e1')"),false,'the victim was destroyed');
    // Works with the previous HEAD's API too (strategistWorld(obs,st,seen)), so the regression is shown on it.
-   const leak=J(t,`(()=>{const obs=observe('e'),info=strategistRemember(obs),out=[];for(let w=0;w<60;w++){const st=runAiSandbox(tacticianClone(tacticianState(obs)),w+1,()=>strategistWorld(obs,tacticianClone(tacticianState(obs)),info,[]));
+   const leak=J(t,`(()=>{const obs=observe('e'),info=strategistRemember(obs),out=[];for(let w=0;w<60;w++){const st=runAiSandbox(tacticianClone(tacticianState(obs)),Math.imul(w+1,0x9e3779b1)>>>0,()=>strategistWorld(obs,tacticianClone(tacticianState(obs)),info,[]));
      out.push(...st.hand.p.map(c=>c.def.id),...st.deck.p.map(c=>c.def.id),...st.board.flat().filter(c=>c.owner==='p'&&c.pending).map(c=>c.def.id));}return out.filter(id=>id==='e1').length;})()`);
    assert.equal(leak,0,`destroyed e1 must not return to the unknown cards (${sameReveal?'same reveal':'earlier reveal'})`);
    const d=J(t,"observe('e').foe.destroyed?.map(x=>x.id)||[]");assert(d.includes('e1'),'destroyed card in the public history');
   }
   done.push('destroyed-card history');
+ }
+ // 7. Spy copies (PR #47 inspection, HEAD 0ad641c): public hand/deck sizes are kept, copies are separate
+ // instances, originals with the same id are not excluded, destroyed copies stay accounted for.
+ if(SECTIONS.has('7')){
+  const FAC=J(boot(1),'Object.fromEntries(CARDS.map(d=>[d.id,d.f]))'),fac=id=>FAC[id]||'?';
+  const worlds=(t,o,n=40)=>J(t,`(()=>{const obs=observe('${o}'),info=strategistRemember(obs),out=[];for(let w=0;w<${n};w++){
+    const st=runAiSandbox(tacticianClone(tacticianState(obs)),Math.imul(w+1,0x9e3779b1)>>>0,()=>strategistWorld(obs,tacticianClone(tacticianState(obs)),info,[]));
+    const f='${o}'==='p'?'e':'p';out.push({hand:st.hand[f].map(c=>c.def.id),deck:st.deck[f].map(c=>c.def.id),myDeck:st.deck['${o}'].map(c=>c.def.id),
+     hidden:st.board.flat().filter(c=>c.owner===f&&c.pending).map(c=>c.def.id)});}
+    return {obs:{hand:obs.foe.handCount,deck:obs.foe.deckCount,myDeck:obs.me.deckCount,hidden:obs.lanes.reduce((n,l)=>n+l.foePendingCount,0)},out};})()`);
+  const counts=(r,tag)=>{for(const w of r.out){assert.equal(w.hand.length,r.obs.hand,tag+': opponent hand size');assert.equal(w.deck.length,r.obs.deck,tag+': opponent deck size');
+   assert.equal(w.myDeck.length,r.obs.myDeck,tag+': own deck size');assert.equal(w.hidden.length,r.obs.hidden,tag+': face-down count');}};
+  // 7a. The inspection case: Keeper (e) skips turn 1 and plays Spy on turn 2, copying an Engineer card.
+  {const t=boot(5);t.run(`registerAiStrategy({id:'hold',version:'test-1',legacy:true,plan(){}});setAiStrategy('e','hold');__opp=null;FAST=true;newGame('eng');`);
+   t.run(`G.fac.e='kee';G.deck.e=shuffle(CARDS.filter(c=>c.f==='kee').map(d=>inst(d,'e')));G.hand.e=[];for(let i=0;i<4;i++)draw('e');
+    const spy=G.deck.e.find(c=>c.def.id==='k3')||G.hand.e.find(c=>c.def.id==='k3');G.deck.e=G.deck.e.filter(c=>c!==spy);G.hand.e=G.hand.e.filter(c=>c!==spy);G.hand.e.push(spy);`);
+   await t.run('endTurn()'); // turn 1: e skips, p plays nothing
+   t.run("place('e',G.hand.e.find(c=>c.def.id==='k3'),0)");await t.run('endTurn()'); // turn 2: Spy reveals and copies
+   const copied=t.run("G.hand.e.filter(c=>c.def.f==='eng').length");assert.equal(copied,1,'setup: the Spy copied an Engineer card');
+   const r=worlds(t,'p');assert.equal(r.obs.hand+r.obs.deck,12,'setup: 11 originals unseen + 1 copy = 12 unknown cards');counts(r,'7a');
+   assert(r.out.every(w=>w.hand.filter(id=>fac(id)==='eng').length===1),'7a: exactly one copy, a card we held');
+   assert(r.out.every(w=>w.deck.every(id=>fac(id)==='kee')),'7a: decks contain no copies');}
+  // 7b. Keeper mirror: the opponent reveals a card whose id we also own; its original must stay possible.
+  {const t=boot(6);t.run(`registerAiStrategy({id:'hold',version:'test-1',legacy:true,plan(){}});setAiStrategy('e','hold');FAST=true;newGame('kee');`);
+   t.run(`G.fac.e='kee';G.deck.e=shuffle(CARDS.filter(c=>c.f==='kee').map(d=>inst(d,'e')));G.hand.e=[];for(let i=0;i<3;i++)draw('e');
+    G.board=[[],[],[]];const spy=inst(CARDS.find(d=>d.id==='k3'),'e');spy.lane=1;spy.revealed=true;G.board[1].push(spy);G.deck.e=G.deck.e.filter(c=>c.def.id!=='k3');G.hand.e=G.hand.e.filter(c=>c.def.id!=='k3');
+    const cp=inst(CARDS.find(d=>d.id==='k12'),'e');cp.lane=0;cp.revealed=true;G.board[0].push(cp);`); // a revealed copy of our k12; the opponent's own k12 is unseen
+   const r=worlds(t,'p',80);counts(r,'7b');
+   assert(r.out.some(w=>w.deck.includes('k12')),'7b: the original with the copied id must stay possible (decks hold originals only)');
+   assert(r.out.some(w=>!w.deck.includes('k12')&&!w.hidden.includes('k12')&&!w.hand.includes('k12')),'7b: the revealed card may also be the original');
+   assert(r.out.every(w=>w.deck.filter(id=>id==='k12').length<=1),'7b: at most one original per id');}
+  // 7c. A destroyed copy of another faction's card stays accounted for and does not change the originals.
+  {const t=boot(7);t.run(`registerAiStrategy({id:'hold',version:'test-1',legacy:true,plan(){}});setAiStrategy('e','hold');FAST=true;newGame('ast');`);
+   t.run(`G.fac.e='kee';G.deck.e=shuffle(CARDS.filter(c=>c.f==='kee').map(d=>inst(d,'e')));G.hand.e=[];for(let i=0;i<3;i++)draw('e');G.board=[[],[],[]];
+    const spy=inst(CARDS.find(d=>d.id==='k3'),'e');spy.lane=2;spy.revealed=true;G.board[2].push(spy);G.deck.e=G.deck.e.filter(c=>c.def.id!=='k3');G.hand.e=G.hand.e.filter(c=>c.def.id!=='k3');
+    const cp=inst(CARDS.find(d=>d.id==='a4'),'e');cp.lane=0;cp.revealed=true;G.board[0].push(cp);destroy(cp);`);
+   const r=worlds(t,'p');counts(r,'7c');
+   assert.deepEqual(J(t,"observe('p').foe.destroyed.map(x=>x.id)"),['a4'],'7c: the destroyed copy is in the public history');
+   assert(r.out.every(w=>[...w.hand,...w.deck,...w.hidden].every(id=>fac(id)==='kee')),'7c: no unknown copy remains after the copy was destroyed');}
+  // 7e. Copy identities come only from our own hand history: changing the real (hidden) copied card, the
+  // opponent's hand and deck order does not change any world sampled during the full plan.
+  {const mk=async()=>{const t=boot(5);t.run(`registerAiStrategy({id:'hold',version:'test-1',legacy:true,plan(){}});setAiStrategy('e','hold');FAST=true;newGame('eng');`);
+    t.run(`G.fac.e='kee';G.deck.e=shuffle(CARDS.filter(c=>c.f==='kee').map(d=>inst(d,'e')));G.hand.e=[];for(let i=0;i<4;i++)draw('e');
+     const spy=G.deck.e.find(c=>c.def.id==='k3')||G.hand.e.find(c=>c.def.id==='k3');G.deck.e=G.deck.e.filter(c=>c!==spy);G.hand.e=G.hand.e.filter(c=>c!==spy);G.hand.e.push(spy);`);
+    await t.run('endTurn()');t.run("place('e',G.hand.e.find(c=>c.def.id==='k3'),0)");await t.run('endTurn()');
+    t.run("noviceAiPlan('e');var __ws=[];const __w=strategistWorld;strategistWorld=(...a)=>{const r=__w(...a);__ws.push(JSON.stringify([r.hand.e.map(c=>c.def.id),r.deck.e.map(c=>c.def.id),r.deck.p.map(c=>c.def.id)]));return r;};");return t;};
+   const a=await mk(),b=await mk();
+   b.run("const cp=G.hand.e.find(c=>c.def.f!=='kee');if(cp)cp.def=CARDS.find(d=>d.id==='e12');G.deck.e.reverse();G.deck.p.reverse();");
+   a.run("AI_STRATEGIES.strategist.plan(aiContext('p'))");b.run("AI_STRATEGIES.strategist.plan(aiContext('p'))");
+   assert(J(a,'__ws').length>0);assert.deepEqual(J(b,'__ws'),J(a,'__ws'),'7e: worlds changed with the hidden copy identity');}
+  // 7d. Real matches with Keepers (mirrors and others), both sides: every sampled world keeps public sizes.
+  let n=0;
+  for(const [pf,ef] of [['kee','kee'],['eng','kee'],['kee','ast'],['ast','kee']])for(const seed of [41,42,43])for(const sSide of ['p','e']){
+   const t=boot(seed);t.run(`var __bad=[],__n=0;const __w=strategistWorld;strategistWorld=(obs,st,info,sets)=>{const r=__w(obs,st,info,sets),f=obs.side==='p'?'e':'p';__n++;
+     const hid=obs.lanes.reduce((a,l)=>a+l.foePendingCount,0);
+     if(r.hand[f].length!==obs.foe.handCount||r.deck[f].length!==obs.foe.deckCount||r.deck[obs.side].length!==obs.me.deckCount||r.board.flat().filter(c=>c.owner===f&&c.pending).length!==hid)
+      __bad.push([obs.turn,obs.side,r.hand[f].length,obs.foe.handCount,r.deck[f].length,obs.foe.deckCount]);return r;};
+    setAiStrategy('${sSide}','strategist');setAiStrategy('${sSide==='p'?'e':'p'}','tactician');FAST=true;newGame('${pf}');
+    if(G.fac.e!=='${ef}'){ // rebuild the opponent for the wanted faction (mirror included), then let it plan turn 1
+     G.fac.e='${ef}';G.board.forEach(l=>{for(let i=l.length-1;i>=0;i--)if(l[i].owner==='e')l.splice(i,1);});
+     G.deck.e=shuffle(CARDS.filter(c=>c.f==='${ef}').map(d=>inst(d,'e')));G.hand.e=[];for(let i=0;i<4;i++)draw('e');G.spent.e=0;G.discount.e=0;aiPlan('e');}`);
+   for(let i=0;i<6;i++)await t.run("(async()=>{aiPlan('p');await endTurn()})()");
+   assert.deepEqual(J(t,'__bad'),[],`7d ${pf}/${ef} ${sSide}#${seed}: sampled world breaks public counts`);n+=t.run('__n');
+  }
+  done.push(`Spy copies (inspection case, Keeper mirror, destroyed copy, ${n} worlds in Keeper matches)`);
  }
  console.log(`PASS: strategist ${done.join(', ')}; ${plans} plans: phase plan, no illegal action, no side effects, no real RNG use`);
 })().catch(e=>{console.error(e);process.exitCode=1});

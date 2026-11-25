@@ -8,7 +8,7 @@ const game=fs.readFileSync('game.js','utf8');
 const mutants=[
  ['sampled worlds use the real opponent hand',[
   [" try{\n  const info=strategistRemember(obs);"," try{\n  globalThis.__realFoeHand=G.hand[other(obs.side)].map(c=>c.def);\n  const info=strategistRemember(obs);"],
-  [" st.hand[f]=rest.splice(0,obs.foe.handCount).map(d=>card(d,f));"," st.hand[f]=globalThis.__realFoeHand.map(d=>card(d,f));"]],
+  [" st.hand[f]=fit(sShuffle([...rest,...copies]),obs.foe.handCount).map(d=>card(d,f));"," st.hand[f]=globalThis.__realFoeHand.map(d=>card(d,f));"]],
   /plan changed with hidden state/,'3'],
  ['sampled worlds use the real face-down cards',[
   [" try{\n  const info=strategistRemember(obs);"," try{\n  globalThis.__realHidden=G.board.flatMap(l=>l.filter(c=>c.owner===other(obs.side)&&c.pending).map(c=>c.def));\n  const info=strategistRemember(obs);"],
@@ -34,7 +34,7 @@ const mutants=[
   [" const budget=strategistFoeBudget(obs,m.byTurn[obs.turn-1]);"," const budget={budget:obs.turn+1,exact:false};"]],
   /impossible face-down cards in sampled worlds/,'5'],
  ['no legal set falls back to the cheapest real cards',[
-  ["hidden.map(()=>AI_UNKNOWN_CARD)","foePool.slice().sort((a,b)=>a.cost-b.cost).slice(0,hidden.length)"]],
+  ["hidden.map(()=>AI_UNKNOWN_CARD)","foe.originals.slice().sort((a,b)=>a.cost-b.cost).slice(0,hidden.length)"]],
   /no legal set: only unknown cards/,'5'],
  ['surcharge from our Fortune Teller ignored',[
   ["s0=ids('me',newMe).includes('a3')?1:0;","s0=0;"]],
@@ -43,10 +43,28 @@ const mutants=[
   ["function destroy(c){if(c.revealed&&c.lane>=0)publicHistory().destroyed[c.owner].push({uid:c.uid,id:c.def.id});","function destroy(c){"]],
   /destroyed e1 must not return to the unknown cards/,'6'],
  ['model ignores the destroyed history',[
-  [" for(const x of obs.me.destroyed)me.add(x.id);for(const x of obs.foe.destroyed)foe.add(x.id);\n",""]],
+  [" for(const x of obs[who].destroyed)ids.push(x.id);for(const id of obs[who].discard)ids.push(id);"," for(const id of obs[who].discard)ids.push(id);"]],
   /destroyed e1 must not return to the unknown cards/,'6'],
+ // PR #47 inspection at 0ad641c: Spy copies (section 7).
+ ['Spy copies ignored (12 originals assumed)',[
+  ["copies=Math.max(0,slots+seen.length-F.length);","copies=0;"]],
+  /7a: exactly one copy/,'7'],
+ ['an original with a copied id is always excluded (Keeper mirror)',[
+  ["const mayOwn=copies>certain&&","const mayOwn=false&&copies>certain&&"]],
+  /7b: the original with the copied id must stay possible/,'7'],
+ ['unknown copies placed in the deck',[
+  [" st.deck[f]=fit(rest.splice(0,obs.foe.deckCount),obs.foe.deckCount).map(d=>card(d,f));\n const held=info.held.map(id=>CARDS.find(d=>d.id===id)).filter(Boolean);\n const copies=Array.from({length:foe.copies},()=>held.length?held[Math.floor(Math.random()*held.length)]:AI_UNKNOWN_CARD);",
+   " const held=info.held.map(id=>CARDS.find(d=>d.id===id)).filter(Boolean);\n const copies=Array.from({length:foe.copies},()=>held.length?held[Math.floor(Math.random()*held.length)]:AI_UNKNOWN_CARD);\n st.deck[f]=fit(sShuffle([...copies,...rest.splice(0,obs.foe.deckCount)]),obs.foe.deckCount).map(d=>card(d,f));copies.length=0;"]],
+  /7a: (decks contain no copies|exactly one copy)/,'7'],
+ ['public hand size not kept',[
+  [" st.hand[f]=fit(sShuffle([...rest,...copies]),obs.foe.handCount).map(d=>card(d,f));"," st.hand[f]=sShuffle([...rest]).map(d=>card(d,f));"]],
+  /opponent hand size|exactly one copy/,'7'],
+ ['copy identities read from the real opponent hand',[
+  [" try{\n  const info=strategistRemember(obs);"," try{\n  globalThis.__realCopies=G.hand[other(obs.side)].filter(c=>c.def.f!==obs.foe.faction).map(c=>c.def.id);\n  const info=strategistRemember(obs);"],
+  [" const held=info.held.map(id=>CARDS.find(d=>d.id===id)).filter(Boolean);"," const held=(globalThis.__realCopies||info.held).map(id=>CARDS.find(d=>d.id===id)).filter(Boolean);"]],
+  /7e: worlds changed with the hidden copy identity/,'7'],
 ];
-function check(source,sections='1,2,3,4,5,6'){
+function check(source,sections='1,2,3,4,5,6,7'){
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'gifted-strat-mut-'));
  try{
   fs.mkdirSync(path.join(dir,'scripts'));
