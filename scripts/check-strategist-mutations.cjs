@@ -7,12 +7,12 @@ const game=fs.readFileSync('game.js','utf8');
 // [name, [[from,to],...], expected message, sections of check-strategist.cjs to run]
 const mutants=[
  ['sampled worlds use the real opponent hand',[
-  [" try{\n  const seen=strategistRemember(obs);"," try{\n  globalThis.__realFoeHand=G.hand[other(obs.side)].map(c=>c.def);\n  const seen=strategistRemember(obs);"],
-  [" st.hand[f]=foePool.splice(0,obs.foe.handCount).map(d=>card(d,f));"," st.hand[f]=globalThis.__realFoeHand.map(d=>card(d,f));"]],
+  [" try{\n  const info=strategistRemember(obs);"," try{\n  globalThis.__realFoeHand=G.hand[other(obs.side)].map(c=>c.def);\n  const info=strategistRemember(obs);"],
+  [" st.hand[f]=rest.splice(0,obs.foe.handCount).map(d=>card(d,f));"," st.hand[f]=globalThis.__realFoeHand.map(d=>card(d,f));"]],
   /plan changed with hidden state/,'3'],
  ['sampled worlds use the real face-down cards',[
-  [" try{\n  const seen=strategistRemember(obs);"," try{\n  globalThis.__realHidden=G.board.flatMap(l=>l.filter(c=>c.owner===other(obs.side)&&c.pending).map(c=>c.def));\n  const seen=strategistRemember(obs);"],
-  [" pick=pick||foePool.slice().sort((a,b)=>a.cost-b.cost).slice(0,hidden.length);"," pick=globalThis.__realHidden;"]],
+  [" try{\n  const info=strategistRemember(obs);"," try{\n  globalThis.__realHidden=G.board.flatMap(l=>l.filter(c=>c.owner===other(obs.side)&&c.pending).map(c=>c.def));\n  const info=strategistRemember(obs);"],
+  [" const pick=hidden.length?(sets.length?sets[Math.floor(Math.random()*sets.length)]:hidden.map(()=>AI_UNKNOWN_CARD)):[];"," const pick=globalThis.__realHidden;"]],
   /plan changed with hidden state/,'3'],
  ['world seed drawn from the real Math.random',[
   ["   const seed=(0x51ed27*(w+1)+obs.turn*977+(o==='p'?13:29))>>>0;","   const seed=(Math.random()*4294967296)>>>0;"]],
@@ -24,13 +24,29 @@ const mutants=[
   ["for(let w=STRATEGIST.worlds;w<STRATEGIST.worlds+STRATEGIST.finalWorlds;w++)evalWorld(w,finalists);","for(let w=STRATEGIST.worlds;w<STRATEGIST.worlds+STRATEGIST.finalWorlds*3;w++)evalWorld(w,finalists);"]],
   /exceed the budget/,'4'],
  ['memory kept across matches',[
-  [" if(obs.turn<m.turn||obs.turn===1)m.seen={me:new Set(),foe:new Set()}; // a new match"," // no reset"]],
+  [" if(obs.turn<m.turn||obs.turn===1)m.byTurn={}; // a new match"," // no reset"]],
   /memory must reset for a new match/,'4'],
  ['opponent answer not modelled',[
   ["    if(foeToAct&&STRATEGIST.modelAnswer){","    if(false){"]],
   /forecast: /,'1'],
+ // PR #47 inspection findings (sections 5 and 6).
+ ['face-down sets use the old turn+1 cost rule (ignores energy, discount, surcharge)',[
+  [" const budget=strategistFoeBudget(obs,m.byTurn[obs.turn-1]);"," const budget={budget:obs.turn+1,exact:false};"]],
+  /impossible face-down cards in sampled worlds/,'5'],
+ ['no legal set falls back to the cheapest real cards',[
+  ["hidden.map(()=>AI_UNKNOWN_CARD)","foePool.slice().sort((a,b)=>a.cost-b.cost).slice(0,hidden.length)"]],
+  /no legal set: only unknown cards/,'5'],
+ ['surcharge from our Fortune Teller ignored',[
+  ["s0=ids('me',newMe).includes('a3')?1:0;","s0=0;"]],
+  /impossible face-down cards in sampled worlds/,'5'],
+ ['destroyed revealed cards not recorded',[
+  ["function destroy(c){if(c.revealed&&c.lane>=0)publicHistory().destroyed[c.owner].push({uid:c.uid,id:c.def.id});","function destroy(c){"]],
+  /destroyed e1 must not return to the unknown cards/,'6'],
+ ['model ignores the destroyed history',[
+  [" for(const x of obs.me.destroyed)me.add(x.id);for(const x of obs.foe.destroyed)foe.add(x.id);\n",""]],
+  /destroyed e1 must not return to the unknown cards/,'6'],
 ];
-function check(source,sections='1,2,3,4'){
+function check(source,sections='1,2,3,4,5,6'){
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'gifted-strat-mut-'));
  try{
   fs.mkdirSync(path.join(dir,'scripts'));

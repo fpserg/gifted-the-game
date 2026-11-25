@@ -4,6 +4,11 @@
 // seeds (seed + config*1000003 + game*7919). Default 1667 per config = 30 006 games. Reports
 // wins/losses/draws overall, per hero faction, per opponent faction, per seat, per combination, and the
 // hero's planning time per call (performance.now in this Node/V8 process; not a smartphone).
+// --checkpoint=<file>: after every finished configuration its result is appended (and fsynced) to <file>
+// as one JSON line; a rerun with the same file skips finished configurations. The file's first line
+// records the run identity (strategies, games per config, seed, SHA-256 of game.js, tutorial.js and this
+// script, configuration list); a rerun with any difference is refused. An incomplete last line from an
+// interrupted write is ignored.
 const fs=require('fs'),vm=require('vm'),crypto=require('crypto'),{fork}=require('child_process');
 const FACS=['eng','ast','kee'];
 const CONFIGS=[];for(const t of FACS)for(const n of FACS)for(const seat of ['p','e'])CONFIGS.push({t,n,seat});
@@ -31,6 +36,9 @@ async function playConfig(src,cfg,index,count,seed,heroId,oppId){
 if(process.argv[2]==='--worker'){
  process.on('message',async({src,jobs,count,seed,heroId,oppId})=>{const res=[];for(const i of jobs)res.push(await playConfig(src,CONFIGS[i],i,count,seed,heroId,oppId));process.send(res,()=>process.exit(0));});
 }else{
+ const flags=process.argv.slice(2).filter(a=>a.startsWith('--')),args=process.argv.slice(2).filter(a=>!a.startsWith('--'));
+ process.argv.splice(2,process.argv.length,...args);
+ const checkpoint=(flags.find(a=>a.startsWith('--checkpoint='))||'').slice(13)||null;
  const heroId=process.argv[2],oppId=process.argv[3];if(!heroId||!oppId)throw Error('usage: tournament-ai.cjs <hero> <opponent> [games] [seed] [workers] [game.js]');
  const count=+(process.argv[4]||1667),seed=+(process.argv[5]||20261124),workers=Math.max(1,+(process.argv[6]||2)),file=process.argv[7]||'game.js';
  // In memory only: let the harness fix the opponent faction, mirrors included (newGame never picks
@@ -38,14 +46,27 @@ if(process.argv[2]==='--worker'){
  const pick="const ef=scenario?scenario.opponentFaction:rndOf(Object.keys(FACTIONS).filter(f=>f!==pf));";
  const game=fs.readFileSync(file,'utf8');if(game.split(pick).length!==2)throw Error('opponent selection line not found');
  const src='var __opp=null;\n'+fs.readFileSync('tutorial.js','utf8')+'\n'+game.replace(pick,"const ef=__opp??(scenario?scenario.opponentFaction:rndOf(Object.keys(FACTIONS).filter(f=>f!==pf)));");
- const start=Date.now();
+ const start=Date.now(),sha=x=>crypto.createHash('sha256').update(x).digest('hex');
+ const identity={kind:'gifted-tournament-checkpoint',hero:heroId,opponent:oppId,gamesPerConfig:count,seed,
+  gameSha256:sha(fs.readFileSync(file)),tutorialSha256:sha(fs.readFileSync('tutorial.js')),scriptSha256:sha(fs.readFileSync(__filename)),configs:CONFIGS};
+ const results=[],done=new Set();let resumed=0;
+ if(checkpoint&&fs.existsSync(checkpoint)){
+  const lines=fs.readFileSync(checkpoint,'utf8').split('\n').filter(Boolean),parsed=[];
+  for(const [n,l] of lines.entries()){try{parsed.push(JSON.parse(l));}catch(e){if(n!==lines.length-1)throw Error(`checkpoint line ${n+1} is corrupt`);}}
+  if(!parsed.length||JSON.stringify(parsed[0])!==JSON.stringify(identity))
+   throw Error('checkpoint '+checkpoint+' belongs to a different code version, seed or parameters; refusing to resume');
+  if(parsed.length!==lines.length)fs.writeFileSync(checkpoint,parsed.map(x=>JSON.stringify(x)).join('\n')+'\n'); // drop the partial line
+  for(const x of parsed.slice(1)){if(done.has(x.index))continue;done.add(x.index);results.push(x.result);resumed++;}
+  process.stderr.write(`resumed ${resumed} configurations from ${checkpoint}\n`);
+ }else if(checkpoint)fs.writeFileSync(checkpoint,JSON.stringify(identity)+'\n');
+ const save=(i,res)=>{if(!checkpoint)return;const fd=fs.openSync(checkpoint,'a');fs.writeSync(fd,JSON.stringify({index:i,result:res[0]})+'\n');fs.fsyncSync(fd);fs.closeSync(fd);};
  // One child process per configuration, at most `workers` at a time.
- const queue=CONFIGS.map((_,i)=>i),results=[];
+ const queue=CONFIGS.map((_,i)=>i).filter(i=>!done.has(i));
  const runOne=i=>new Promise((ok,bad)=>{const child=fork(__filename,['--worker']);let got=false;
   child.on('message',m=>{got=true;ok(m);});child.on('error',bad);
   child.on('exit',(c,sig)=>{if(c||!got)bad(Error(`config ${i}: worker exit ${c} ${sig||''}${got?'':' without results'}`));});
   child.send({src,jobs:[i],count,seed,heroId,oppId});});
- Promise.all(Array.from({length:workers},async()=>{while(queue.length){const i=queue.shift();results.push(...await runOne(i));process.stderr.write(`config ${i} done\n`);}})).then(()=>[results]).then(parts=>{
+ Promise.all(Array.from({length:workers},async()=>{while(queue.length){const i=queue.shift();const r=await runOne(i);save(i,r);results.push(...r);process.stderr.write(`config ${i} done\n`);}})).then(()=>[results]).then(parts=>{
   const rows=parts.flat().sort((a,b)=>CONFIGS.findIndex(c=>c.t===a.t&&c.n===a.n&&c.seat===a.seat)-CONFIGS.findIndex(c=>c.t===b.t&&c.n===b.n&&c.seat===b.seat));
   const sum=f=>{const r={games:0,wins:0,losses:0,draws:0};for(const x of rows.filter(f)){r.games+=x.games;r.wins+=x.wins;r.losses+=x.losses;r.draws+=x.draws;}
    r.winRateDecisive=Math.round(r.wins/(r.wins+r.losses)*10000)/100;r.winRate=Math.round(r.wins/r.games*10000)/100;return r;};
@@ -57,7 +78,7 @@ if(process.argv[2]==='--worker'){
    byCombination:rows.map(({times,...x})=>({...x,winRateDecisive:Math.round(x.wins/(x.wins+x.losses)*10000)/100})),
    planTimeMs:{calls:times.length,mean:Math.round(times.reduce((s,x)=>s+x,0)/times.length*100)/100,p50:q(.5),p95:q(.95),p99:q(.99),max:q(1)},
    environment:{node:process.version,platform:process.platform,arch:process.arch,cpus:require('os').cpus().length,cpu:require('os').cpus()[0]?.model},
-   elapsedSeconds:(Date.now()-start)/1000};
+   checkpoint:checkpoint?{file:checkpoint,resumedConfigs:resumed}:null,elapsedSeconds:(Date.now()-start)/1000};
   console.log(JSON.stringify(report,null,2));
  }).catch(e=>{console.error(e);process.exitCode=1;});
 }

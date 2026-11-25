@@ -107,7 +107,11 @@ function power(c){
 function laneTotal(l,o){return cardsIn(l,o).reduce((s,c)=>s+power(c),0);}
 function laneWinner(l){const p=laneTotal(l,'p'),e=laneTotal(l,'e');if(p===e)return null;const low=loc(l)&&!locationRuleDisabled(l)&&loc(l).low;return (p>e)!==!!low?'p':'e';}
 function buff(c,n){if(!n||!c)return;c.buff+=n;c.flash={t:(n>0?'+':'')+n,up:n>0,at:now()};}
-function destroy(c){const a=G.board[c.lane];const i=a.indexOf(c);if(i>=0)a.splice(i,1);c.lane=-1;say(`💥 «${c.def.name}» уничтожена`);}
+// Public match history kept outside G (G and its snapshots are unchanged): revealed cards that were
+// destroyed. Keyed by the match state object, so every new match starts empty (GIFTED-004C).
+const AI_PUBLIC_HISTORY=new WeakMap();
+function publicHistory(){let h=AI_PUBLIC_HISTORY.get(G);if(!h){h={destroyed:{p:[],e:[]}};AI_PUBLIC_HISTORY.set(G,h);}return h;}
+function destroy(c){if(c.revealed&&c.lane>=0)publicHistory().destroyed[c.owner].push({uid:c.uid,id:c.def.id});const a=G.board[c.lane];const i=a.indexOf(c);if(i>=0)a.splice(i,1);c.lane=-1;say(`💥 «${c.def.name}» уничтожена`);}
 const now=()=>typeof performance!=='undefined'?performance.now():Date.now();
 let logLines=[];
 function say(t){logLines.push(t);if(logLines.length>2)logLines.shift();}
@@ -163,8 +167,8 @@ function setAiStrategy(side,id){if(side!=='p'&&side!=='e')throw Error('Invalid s
 function aiStrategy(o){return AI_STRATEGIES[aiSides[o]];}
 function aiPlan(o){const s=aiStrategy(o);if(s.legacy)return s.plan(o);return s.plan(aiContext(o));}
 // Information available to side o: its own hand, the public board and what the rules have revealed.
-// Both heroes' factions are shown in the UI; discard piles hold destroyed cards and cards discarded by
-// Astromancer, which both sides have seen (GIFTED-004C).
+// Both heroes' factions are shown in the UI; discard piles hold cards discarded by Astromancer and
+// `destroyed` lists revealed cards destroyed this match; both sides have seen them (GIFTED-004C).
 // Never included: the opponent's hand or face-down cards (only their count), any deck order or
 // content, unrevealed locations, card uids of hidden cards, or the random number state.
 function observe(o){
@@ -172,8 +176,8 @@ function observe(o){
  return JSON.parse(JSON.stringify({
   side:o,turn:G.turn,phase:G.phase,mode:gameMode,energy:G.turn-G.spent[o],
   me:{hand:G.hand[o].map(c=>({uid:c.uid,id:c.def.id,cost:effCost(o,c),baseCost:c.def.cost,power:c.def.power+c.buff})),
-   deckCount:G.deck[o].length,discount:G.discount[o],surcharge:surchargeOf(o),faction:G.fac[o],discard:G.discard[o].map(c=>c.def.id)},
-  foe:{handCount:G.hand[foe].length,deckCount:G.deck[foe].length,discount:G.discount[foe],surcharge:surchargeOf(foe),faction:G.fac[foe],discard:G.discard[foe].map(c=>c.def.id)},
+   deckCount:G.deck[o].length,discount:G.discount[o],surcharge:surchargeOf(o),faction:G.fac[o],discard:G.discard[o].map(c=>c.def.id),destroyed:publicHistory().destroyed[o].map(x=>({...x}))},
+  foe:{handCount:G.hand[foe].length,deckCount:G.deck[foe].length,discount:G.discount[foe],surcharge:surchargeOf(foe),faction:G.fac[foe],discard:G.discard[foe].map(c=>c.def.id),destroyed:publicHistory().destroyed[foe].map(x=>({...x}))},
   lanes:[0,1,2].map(l=>({lane:l,location:G.locRev[l]?G.locs[l].id:null,ruleDisabled:G.locRev[l]&&locationRuleDisabled(l),
    canPlay:canPlay(o,l),foeCanPlay:canPlay(foe,l),blockedNextTurn:{me:G.blockedUntil[o][l]===G.turn+1,foe:G.blockedUntil[foe][l]===G.turn+1},
    trap:{me:G.trap[l][o],foe:G.trap[l][foe]},total:{me:laneTotal(l,o),foe:laneTotal(l,foe)},
@@ -390,34 +394,66 @@ registerAiStrategy({id:TACTICIAN.id,version:TACTICIAN.version,name:'Тактик
 // the best mean result is played; anything unexpected falls back to the Tactician plan.
 const STRATEGIST={id:'strategist',version:'strategist-1',candidates:6,worlds:12,finalists:3,finalWorlds:24,horizonEarly:2,modelAnswer:true};
 const strategistStats={calls:0,fallbacks:0,rollouts:0};
-const strategistMemory={p:{turn:0,seen:{me:new Set(),foe:new Set()}},e:{turn:0,seen:{me:new Set(),foe:new Set()}}};
-// Cards a side has seen: everything revealed so far (destroyed cards leave the board), its hand and discards.
+// Per side: the first observation of each turn of the current match (for the opponent's discount and
+// surcharge at the start of a turn). Reset when a new match starts.
+const strategistMemory={p:{turn:0,byTurn:{}},e:{turn:0,byTurn:{}}};
+// Card ids each side has accounted for, from the observation alone: cards revealed on the board, revealed
+// cards destroyed this match, discards, and for itself its hand and placed cards. Revealed cards never
+// return to a hand or deck (only one's own face-down cards can be taken back while planning).
+function strategistKnown(obs){
+ const me=new Set(),foe=new Set(),side=x=>x==='me'?me:foe;
+ for(const l of obs.lanes){for(const c of l.revealed)side(c.owner).add(c.id);for(const c of l.myPending)me.add(c.id);}
+ for(const h of obs.me.hand)me.add(h.id);
+ for(const x of obs.me.destroyed)me.add(x.id);for(const x of obs.foe.destroyed)foe.add(x.id);
+ for(const id of obs.me.discard)me.add(id);for(const id of obs.foe.discard)foe.add(id);
+ return {me,foe};
+}
+const strategistRevealedUids=(obs,who)=>new Set([...obs.lanes.flatMap(l=>l.revealed.filter(c=>c.owner===who).map(c=>c.uid)),...obs[who].destroyed.map(x=>x.uid)]);
+// Energy the opponent could spend on this turn's face-down cards: turn + discount - surcharge at the start
+// of the turn (both apply to its first card; every card costs at least 1). Exact when this side observed the
+// previous turn: the discount it then had, or a Black Cat it revealed since; the surcharge from our Fortune
+// Teller revealed since. Otherwise the most permissive possible values (discount if it ever revealed a Cat).
+function strategistFoeBudget(obs,prev){
+ const T=obs.turn,foeNow=strategistRevealedUids(obs,'foe'),meNow=strategistRevealedUids(obs,'me');
+ const ids=(who,uids)=>[...uids].map(u=>[...obs.lanes.flatMap(l=>l.revealed),...obs[who].destroyed].find(c=>c.uid===u)?.id);
+ if(prev&&prev.turn===T-1){
+  const newFoe=[...foeNow].filter(u=>!prev.foe.has(u)),newMe=[...meNow].filter(u=>!prev.me.has(u));
+  const d0=prev.foeDiscount||ids('foe',newFoe).includes('a2')?1:0,s0=ids('me',newMe).includes('a3')?1:0;
+  return {budget:T+d0-s0,exact:true};
+ }
+ const d0=obs.foe.discount||ids('foe',foeNow).includes('a2')?1:0;
+ return {budget:T+d0,exact:false};
+}
 function strategistRemember(obs){
  const m=strategistMemory[obs.side];
- if(obs.turn<m.turn||obs.turn===1)m.seen={me:new Set(),foe:new Set()}; // a new match
+ if(obs.turn<m.turn||obs.turn===1)m.byTurn={}; // a new match
  m.turn=obs.turn;
- for(const l of obs.lanes)for(const c of l.revealed)m.seen[c.owner].add(c.id);
- for(const l of obs.lanes)for(const c of l.myPending)m.seen.me.add(c.id);
- for(const h of obs.me.hand)m.seen.me.add(h.id);
- for(const id of obs.me.discard)m.seen.me.add(id);for(const id of obs.foe.discard)m.seen.foe.add(id);
- return m.seen;
+ const budget=strategistFoeBudget(obs,m.byTurn[obs.turn-1]);
+ if(!m.byTurn[obs.turn])m.byTurn[obs.turn]={turn:obs.turn,foeDiscount:obs.foe.discount,foe:strategistRevealedUids(obs,'foe'),me:strategistRevealedUids(obs,'me')};
+ return {known:strategistKnown(obs),budget};
+}
+// All sets of `k` unseen opponent cards whose total cost fits the budget (k <= 6, pool <= 12 cards).
+function strategistHiddenSets(pool,k,budget){
+ const out=[],cur=[];
+ const rec=(i,sum)=>{if(cur.length===k){out.push([...cur]);return;}
+  for(let j=i;j<pool.length;j++){if(sum+pool[j].cost>budget)continue;cur.push(pool[j]);rec(j+1,sum+pool[j].cost);cur.pop();}};
+ if(k)rec(0,0);return out;
 }
 const sShuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
 // Samples one world into the sandbox state st (built by tacticianState); runs inside runAiSandbox.
-function strategistWorld(obs,st,seen){
- const o=obs.side,f=other(o),T=obs.turn;
+// Face-down opponent cards are drawn uniformly from the legal sets (energy, discount, surcharge); if no
+// legal set of unseen cards exists, each is an effect-free unknown card, never an impossible real card.
+function strategistWorld(obs,st,info,sets){
+ const o=obs.side,f=other(o);
  const unseen=(fac,known)=>CARDS.filter(d=>d.f===fac&&!known.has(d.id));
- const foePool=sShuffle(unseen(obs.foe.faction,seen.foe)),myPool=sShuffle(unseen(obs.me.faction,seen.me));
+ const foePool=unseen(obs.foe.faction,info.known.foe),myPool=sShuffle(unseen(obs.me.faction,info.known.me));
  const card=(def,owner)=>({uid:-(++strategistStats.rollouts)-1e6,def,owner,lane:-1,buff:0,revealed:false,pending:false,paid:0,usedDisc:false,usedSurcharge:false,flash:null});
- // Opponent face-down cards: sampled with a total cost the opponent could have paid this turn.
- const hidden=obs.lanes.flatMap(l=>Array(l.foePendingCount).fill(l.lane));
- let pick=null;
- for(let t=0;t<20&&hidden.length;t++){const c=sShuffle([...foePool]).slice(0,hidden.length);
-  if(c.reduce((s,d)=>s+d.cost,0)<=T+1){pick=c;break;}}
- pick=pick||foePool.slice().sort((a,b)=>a.cost-b.cost).slice(0,hidden.length);
- hidden.forEach((l,i)=>{if(!pick[i])return;const c=card(pick[i],f);c.lane=l;c.pending=true;st.board[l].push(c);foePool.splice(foePool.indexOf(pick[i]),1);});
- st.hand[f]=foePool.splice(0,obs.foe.handCount).map(d=>card(d,f));
- st.deck[f]=foePool.splice(0,obs.foe.deckCount).map(d=>card(d,f));
+ const hidden=sShuffle(obs.lanes.flatMap(l=>Array(l.foePendingCount).fill(l.lane)));
+ const pick=hidden.length?(sets.length?sets[Math.floor(Math.random()*sets.length)]:hidden.map(()=>AI_UNKNOWN_CARD)):[];
+ hidden.forEach((l,i)=>{const c=card(pick[i],f);c.lane=l;c.pending=true;st.board[l].push(c);});
+ const rest=sShuffle(foePool.filter(d=>!pick.includes(d)));
+ st.hand[f]=rest.splice(0,obs.foe.handCount).map(d=>card(d,f));
+ st.deck[f]=rest.splice(0,obs.foe.deckCount).map(d=>card(d,f));
  st.deck[o]=myPool.slice(0,obs.me.deckCount).map(d=>card(d,o));
  const known=new Set(obs.lanes.filter(l=>l.location).map(l=>l.location)),locs=sShuffle(LOCS.filter(L=>!known.has(L.id)));
  st.locs=st.locs.map((L,i)=>st.locRev[i]?L:locs.pop());
@@ -438,7 +474,9 @@ function strategistPlan(ctx){
  const obs=ctx.observation;if(obs.phase!=='plan')return;
  const base=tacticianState(obs);let fallback=null;
  try{
-  const seen=strategistRemember(obs);
+  const info=strategistRemember(obs);
+  const hiddenCount=obs.lanes.reduce((n,l)=>n+l.foePendingCount,0);
+  const sets=strategistHiddenSets(CARDS.filter(d=>d.f===obs.foe.faction&&!info.known.foe.has(d.id)),hiddenCount,info.budget.budget);
   const plans=tacticianPlans(obs,base),scored=plans.map(p=>({p,v:tacticianEvaluate(obs,base,p)}));
   const order=[...scored].sort((a,b)=>b.v-a.v);fallback=order[0].p;
   const cands=order.slice(0,STRATEGIST.candidates);if(!cands.some(c=>!c.p.length))cands.push(scored[0]);
@@ -447,7 +485,7 @@ function strategistPlan(ctx){
   const total=cands.map(()=>0),runs=cands.map(()=>0);
   const evalWorld=(w,ids)=>{
    const seed=(0x51ed27*(w+1)+obs.turn*977+(o==='p'?13:29))>>>0;
-   const world=runAiSandbox(tacticianClone(base),seed,()=>strategistWorld(obs,tacticianClone(base),seen));
+   const world=runAiSandbox(tacticianClone(base),seed,()=>strategistWorld(obs,tacticianClone(base),info,sets));
    // The opponent sees only how many cards we placed per location, so its likely answer (the
    // Tactician's choice from its view of this sampled world) is shared by candidates with the same counts.
    const answers=new Map();
