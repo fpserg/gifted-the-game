@@ -22,6 +22,9 @@ async function playConfig(src,cfg,index,count,seed,heroId,oppId){
  const oseat=cfg.seat==='p'?'e':'p';
  run(`var __t=[];const __plan=AI_STRATEGIES['${heroId}'].plan;AI_STRATEGIES['${heroId}']=Object.freeze({...AI_STRATEGIES['${heroId}'],plan(c){const s=performance.now();__plan(c);__t.push(performance.now()-s);}});
   setAiStrategy('${cfg.seat}','${heroId}');setAiStrategy('${oseat}','${oppId}');FAST=true;`);
+ // Strategist counters (GIFTED-004D): fallbacks were reported as 0 without being counted. Deltas of the
+ // engine's own counters over this configuration; they cover every Strategist side in the context.
+ const stats=()=>JSON.parse(run("JSON.stringify(typeof strategistStats==='object'?strategistStats:{})"));const s0=stats();
  for(let g=0;g<count;g++){
   x=(seed+index*1000003+g*7919)>>>0;
   run(`__t=[];__opp='${opp}';newGame('${hero}');__opp=null;`);
@@ -31,6 +34,9 @@ async function playConfig(src,cfg,index,count,seed,heroId,oppId){
   const r=run('G.result');out.games++;if(r===null)out.draws++;else if(r===cfg.seat)out.wins++;else out.losses++;
   out.times.push(...JSON.parse(run('JSON.stringify(__t)')));
  }
+ const s1=stats(),d=k=>(s1[k]||0)-(s0[k]||0);
+ out.fallbacks=d('fallbacks');out.fallbacksWithoutPlan=d('fallbacksWithoutPlan');out.worldFallbacks={opponent:d('foeFallbacks'),own:d('ownFallbacks')};
+ out.fallbackCauses={};for(const [k,v] of Object.entries(s1.fallbackCauses||{})){const n=v-((s0.fallbackCauses||{})[k]||0);if(n)out.fallbackCauses[k]=n;}
  return out;
 }
 if(process.argv[2]==='--worker'){
@@ -76,6 +82,9 @@ if(process.argv[2]==='--worker'){
    byHeroFaction:Object.fromEntries(FACS.map(f=>[f,sum(x=>x.t===f)])),byOpponentFaction:Object.fromEntries(FACS.map(f=>[f,sum(x=>x.n===f)])),
    bySeat:{p:sum(x=>x.seat==='p'),e:sum(x=>x.seat==='e')},mirror:sum(x=>x.t===x.n),
    byCombination:rows.map(({times,...x})=>({...x,winRateDecisive:Math.round(x.wins/(x.wins+x.losses)*10000)/100})),
+   fallbacks:{plans:rows.reduce((a,x)=>a+x.fallbacks,0),withoutPlan:rows.reduce((a,x)=>a+(x.fallbacksWithoutPlan||0),0),
+    worldOpponent:rows.reduce((a,x)=>a+((x.worldFallbacks||{}).opponent||0),0),worldOwn:rows.reduce((a,x)=>a+((x.worldFallbacks||{}).own||0),0),
+    causes:rows.reduce((a,x)=>{for(const [k,v] of Object.entries(x.fallbackCauses||{}))a[k]=(a[k]||0)+v;return a;},{})},
    planTimeMs:{calls:times.length,mean:Math.round(times.reduce((s,x)=>s+x,0)/times.length*100)/100,p50:q(.5),p95:q(.95),p99:q(.99),max:q(1)},
    environment:{node:process.version,platform:process.platform,arch:process.arch,cpus:require('os').cpus().length,cpu:require('os').cpus()[0]?.model},
    checkpoint:checkpoint?{file:checkpoint,resumedConfigs:resumed}:null,elapsedSeconds:(Date.now()-start)/1000};

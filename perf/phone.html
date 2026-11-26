@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GIFTED — замер ИИ на телефоне</title>
+<!-- GIFTED-004D (#56): physical-device measurement of AI decision time (target p95 ≤ 1 s on the target smartphone).
+     Same methodology as the Inspector browser measurement (#51/#52): each AI level plays against the Novice,
+     seats alternate p/e, heroes cycle eng/ast/kee, game g uses the LCG seed g+11, 6 decisions per game.
+     The game code of the exact commit (?sha=) is loaded from jsDelivr and its SHA-256 is shown; it runs on the
+     main thread as in the game, without the game's interface. Not part of the game; nothing is sent anywhere. -->
+<style>
+ body{font:16px/1.4 -apple-system,system-ui,sans-serif;margin:0;padding:max(16px,env(safe-area-inset-top)) 16px 32px;background:#14110c;color:#f3e7c9}
+ h1{font-size:20px;margin:0 0 8px}p{margin:6px 0}small{color:#bba982}
+ button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:14px 18px;margin:8px 8px 0 0;background:#c9a24a;color:#1b140a}
+ button:disabled{opacity:.45}
+ table{border-collapse:collapse;width:100%;margin-top:12px;font-size:14px}td,th{border-bottom:1px solid #3a3122;padding:6px 4px;text-align:right}th:first-child,td:first-child{text-align:left}
+ .ok{color:#8fd18a}.bad{color:#ff8a7a}#log{white-space:pre-wrap;font:12px ui-monospace,monospace;color:#bba982;margin-top:12px}
+ .big{font-size:18px;font-weight:700;margin-top:14px}
+</style>
+</head>
+<body>
+<h1>Замер скорости ИИ на телефоне</h1>
+<p>Нажмите «Начать», не сворачивайте страницу и не блокируйте экран до конца (около 2–4 минут). Затем нажмите «Поделиться» или «Скопировать» и отправьте результат.</p>
+<p><small id="info"></small></p>
+<button id="start">Начать</button><button id="share" disabled>Поделиться</button><button id="copy" disabled>Скопировать</button>
+<p id="status"></p>
+<div id="summary"></div>
+<table id="tbl" hidden><thead><tr><th>Уровень</th><th>Решений</th><th>p50 мс</th><th>p95 мс</th><th>p99 мс</th><th>Макс мс</th><th>&gt;1 с</th></tr></thead><tbody></tbody></table>
+<div id="log"></div>
+<script>
+'use strict';
+const q=new URLSearchParams(location.search);
+const SHA=(q.get('sha')||'').toLowerCase(),GAMES=Math.max(2,Math.min(120,parseInt(q.get('games')||'30',10)||30))&~1;
+const LEVELS=(q.get('levels')||'novice,tactician,strategist').split(',').filter(x=>/^[a-z]+$/.test(x));
+const NAMES={novice:'Новичок',tactician:'Тактик',strategist:'Стратег'},HEROES=['eng','ast','kee'];
+const $=id=>document.getElementById(id);let resultText='';
+$('info').textContent=`Версия кода: ${SHA||'не указана'} · партий на уровень: ${GAMES} · ${navigator.userAgent}`;
+const log=s=>{$('log').textContent+=s+'\n';};
+async function sha256(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+const pause=()=>new Promise(r=>setTimeout(r,0));
+function stats(a){const t=[...a].sort((x,y)=>x-y),n=t.length,r=v=>Math.round(v*10)/10,q=p=>r(t[Math.min(n-1,Math.floor(n*p))]);
+ return {n,p50:q(.5),p95:q(.95),p99:q(.99),max:r(t[n-1]),over1s:t.filter(v=>v>1000).length};}
+async function load(){
+ if(!/^[0-9a-f]{40}$/.test(SHA))throw Error('В ссылке нет полного SHA версии (?sha=…). Откройте ссылку из отчёта целиком.');
+ const base=`https://cdn.jsdelivr.net/gh/fpserg/gifted-the-game@${SHA}/`;
+ const get=async f=>{const r=await fetch(base+f,{cache:'no-store'});if(!r.ok)throw Error(`Не удалось загрузить ${f}: ${r.status}`);return r.text();};
+ const [tut,game]=await Promise.all([get('tutorial.js'),get('game.js')]);
+ return {tut,game,hashes:{'tutorial.js':await sha256(tut),'game.js':await sha256(game)}};
+}
+// A fresh engine per level; the game's interface is not used (document is hidden from the game code).
+async function run(code,level,onGame){
+ const ev=new Function('document',code.tut+'\n'+code.game+'\n;return (c)=>eval(c);')(undefined);
+ if(!ev('typeof AI_STRATEGIES==="object"&&!!AI_STRATEGIES["'+level+'"]'))throw Error('В этой версии нет уровня '+level);
+ const times={p:[],e:[]};
+ const entry=ev('AI_STRATEGIES["'+level+'"]'),orig=entry.plan;
+ // Only the measured seat is timed (for the Novice both seats share one registry entry).
+ let seat='p';
+ const timed=entry.legacy?function(o){const s=performance.now();orig(o);if(o===seat)times[o].push(performance.now()-s);}:function(c){const s=performance.now();orig(c);if(c.side===seat)times[c.side].push(performance.now()-s);};
+ const reg=ev('AI_STRATEGIES');reg[level]=Object.freeze({...entry,plan:timed});
+ ev('FAST=true');
+ let x=1;const rnd=()=>((x=(Math.imul(x,1664525)+1013904223)>>>0)/4294967296),real=Math.random;
+ try{for(let g=0;g<GAMES;g++){x=g+11;Math.random=rnd;seat=g%2?'e':'p';
+  ev(`setAiStrategy('p','novice');setAiStrategy('e','novice');setAiStrategy('${seat}','${level}');newGame('${HEROES[g%3]}')`);
+  for(let i=0;i<6;i++)await ev("(async()=>{aiPlan('p');await endTurn()})()");
+  Math.random=real;onGame(g);await pause();}}
+ finally{Math.random=real;}
+ return times;
+}
+$('start').onclick=async()=>{
+ $('start').disabled=true;$('log').textContent='';$('summary').textContent='';$('tbl').hidden=true;$('tbl').tBodies[0].innerHTML='';
+ let lock=null;try{lock=await navigator.wakeLock?.request('screen');}catch{}
+ try{
+  $('status').textContent='Загрузка версии…';const code=await load();
+  log(`game.js SHA-256 ${code.hashes['game.js']}\ntutorial.js SHA-256 ${code.hashes['tutorial.js']}`);
+  const out={};
+  for(const lv of LEVELS){
+   const t0=performance.now();
+   const times=await run(code,lv,g=>{$('status').textContent=`${NAMES[lv]||lv}: партия ${g+1} из ${GAMES}`;});
+   const all=[...times.p,...times.e];
+   out[lv]={all:stats(all),p:stats(times.p),e:stats(times.e),seconds:Math.round((performance.now()-t0)/100)/10};
+   if(out[lv].all.n!==GAMES*6)throw Error(`${lv}: ${out[lv].all.n} решений вместо ${GAMES*6}`);
+   const s=out[lv].all,tr=document.createElement('tr');tr.innerHTML=`<td>${NAMES[lv]||lv}</td><td>${s.n}</td><td>${s.p50}</td><td class="${s.p95<=1000?'ok':'bad'}">${s.p95}</td><td>${s.p99}</td><td>${s.max}</td><td>${s.over1s}</td>`;
+   $('tbl').tBodies[0].appendChild(tr);$('tbl').hidden=false;
+  }
+  const worst=Math.max(...LEVELS.map(l=>out[l].all.p95));
+  $('summary').innerHTML=`<p class="big ${worst<=1000?'ok':'bad'}">${worst<=1000?'✅':'❌'} Самый медленный уровень: p95 ${worst} мс (цель ≤ 1000 мс)</p>`;
+  $('status').textContent='Готово.';
+  resultText=['GIFTED 004D phone measurement',`sha ${SHA}`,`game.js ${code.hashes['game.js']}`,`tutorial.js ${code.hashes['tutorial.js']}`,`ua ${navigator.userAgent}`,
+   `screen ${screen.width}x${screen.height}@${devicePixelRatio} cores ${navigator.hardwareConcurrency||'?'} date ${new Date().toISOString()} games ${GAMES}`,
+   ...LEVELS.flatMap(l=>['all','p','e'].map(k=>{const s=out[l][k];return `${l} ${k} n=${s.n} p50=${s.p50} p95=${s.p95} p99=${s.p99} max=${s.max} over1s=${s.over1s}`;})),
+   ...LEVELS.map(l=>`${l} seconds=${out[l].seconds}`)].join('\n');
+  log('\n'+resultText);$('copy').disabled=false;$('share').disabled=!navigator.share;
+ }catch(e){$('status').innerHTML=`<span class="bad">Ошибка: ${String(e.message||e)}</span>`;resultText='GIFTED 004D phone measurement FAILED: '+String(e.message||e)+'\nua '+navigator.userAgent;$('copy').disabled=false;}
+ finally{try{await lock?.release();}catch{}$('start').disabled=false;}
+};
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText(resultText);$('status').textContent='Результат скопирован.';}catch{$('status').textContent='Скопируйте текст ниже вручную.';}};
+$('share').onclick=async()=>{try{await navigator.share({title:'GIFTED: замер ИИ',text:resultText});}catch{}};
+</script>
+</body>
+</html>
