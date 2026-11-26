@@ -150,6 +150,7 @@ jobs:
           O="$RUNNER_TEMP/ib-out"
           if [ -f "$O/summary.md" ]; then
             cat "$O/summary.md" >> "$GITHUB_STEP_SUMMARY"
+            node -e 'const m=require(process.argv[1]),b=m.isolation.rendererSandbox;console.log(`::notice title=Inspector browser environment::${m.browser.product}; sandbox adequate=${b.adequate} seccomp=${b.seccompBpf} netns=${b.networkNamespaces}; interfaces=${m.isolation.interfaces}; uid=${m.isolation.uid}; tool ${m.tool.version} ${m.tool.commit} sha256 ${m.tool.scriptSha256}; game.js ${m.target.files["game.js"]}; strategy ${m.target.strategy.id} ${m.target.strategy.version}; ${m.environment.cpus}x ${m.environment.cpuModel}; image ${m.environment.runner.imageOS} ${m.environment.runner.imageVersion}`)' "$O/measurement.json"
             node -e 'const m=require(process.argv[1]);for(const [r,x] of Object.entries(m.results))for(const k of ["all","p","e"])console.log(`::notice title=Inspector browser ${r}x ${k}::n=${x[k].n} p50=${x[k].p50} p95=${x[k].p95} p99=${x[k].p99} max=${x[k].max} over1s=${x[k].over1s} ms; target ${m.target.sha}`)' "$O/measurement.json"
           elif [ -f "$O/error.json" ]; then
             { echo '## Inspector browser measurement FAILED'; echo '```'; cat "$O/error.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
