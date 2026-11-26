@@ -8,11 +8,11 @@ const game=fs.readFileSync('game.js','utf8');
 const mutants=[
  ['sampled worlds use the real opponent hand',[
   [" try{\n  const info=strategistRemember(obs);"," try{\n  globalThis.__realFoeHand=G.hand[other(obs.side)].map(c=>c.def);\n  const info=strategistRemember(obs);"],
-  [" st.hand[f]=fit(sShuffle([...rest,...copies]),obs.foe.handCount).map(d=>card(d,f));"," st.hand[f]=globalThis.__realFoeHand.map(d=>card(d,f));"]],
+  [" st.hand[f]=s.hand.map(x=>Object.assign(card(x.def,f),{copy:!!x.copy}));"," st.hand[f]=globalThis.__realFoeHand.map(d=>card(d,f));"]],
   /plan changed with hidden state/,'3'],
  ['sampled worlds use the real face-down cards',[
   [" try{\n  const info=strategistRemember(obs);"," try{\n  globalThis.__realHidden=G.board.flatMap(l=>l.filter(c=>c.owner===other(obs.side)&&c.pending).map(c=>c.def));\n  const info=strategistRemember(obs);"],
-  [" const pick=hidden.length?(sets.length?sets[Math.floor(Math.random()*sets.length)]:hidden.map(()=>AI_UNKNOWN_CARD)):[];"," const pick=globalThis.__realHidden;"]],
+  ["hidden.forEach((l,i)=>{const c=card(s.hidden[i].def,f);","hidden.forEach((l,i)=>{const c=card(globalThis.__realHidden[i]||s.hidden[i].def,f);"]],
   /plan changed with hidden state/,'3'],
  ['world seed drawn from the real Math.random',[
   ["   const seed=(0x51ed27*(w+1)+obs.turn*977+(o==='p'?13:29))>>>0;","   const seed=(Math.random()*4294967296)>>>0;"]],
@@ -34,7 +34,7 @@ const mutants=[
   [" const budget=strategistFoeBudget(obs,m.byTurn[obs.turn-1]);"," const budget={budget:obs.turn+1,exact:false};"]],
   /impossible face-down cards in sampled worlds/,'5'],
  ['no legal set falls back to the cheapest real cards',[
-  ["hidden.map(()=>AI_UNKNOWN_CARD)","foe.originals.slice().sort((a,b)=>a.cost-b.cost).slice(0,hidden.length)"]],
+  ["s={hidden:hidden.map(()=>({def:AI_UNKNOWN_CARD}))","s={hidden:u.originals.slice().sort((a,b)=>a.cost-b.cost).slice(0,hidden.length).map(def=>({def}))"]],
   /no legal set: only unknown cards/,'5'],
  ['surcharge from our Fortune Teller ignored',[
   ["s0=ids('me',newMe).includes('a3')?1:0;","s0=0;"]],
@@ -43,28 +43,53 @@ const mutants=[
   ["function destroy(c){if(c.revealed&&c.lane>=0)publicHistory().destroyed[c.owner].push({uid:c.uid,id:c.def.id});","function destroy(c){"]],
   /destroyed e1 must not return to the unknown cards/,'6'],
  ['model ignores the destroyed history',[
-  [" for(const x of obs[who].destroyed)ids.push(x.id);for(const id of obs[who].discard)ids.push(id);"," for(const id of obs[who].discard)ids.push(id);"]],
+  ["...obs.lanes.flatMap(l=>l.revealed.filter(c=>c.owner==='foe')),...obs.foe.destroyed].map(c=>({id:c.id,uid:c.uid,turn:foeTurn.get(c.uid)||0}))","...obs.lanes.flatMap(l=>l.revealed.filter(c=>c.owner==='foe'))].map(c=>({id:c.id,uid:c.uid,turn:foeTurn.get(c.uid)||0}))"]],
   /destroyed e1 must not return to the unknown cards/,'6'],
- // PR #47 inspection at 0ad641c: Spy copies (section 7).
+ // PR #47 inspection at 0ad641c: Spy copies (section 7), retargeted to the history-based model.
  ['Spy copies ignored (12 originals assumed)',[
-  ["copies=Math.max(0,slots+seen.length-F.length);","copies=0;"]],
+  ["C=H+D+hiddenCount+seen.length-F.length;","C=0;"]],
   /7a: exactly one copy/,'7'],
  ['an original with a copied id is always excluded (Keeper mirror)',[
-  ["const mayOwn=copies>certain&&","const mayOwn=false&&copies>certain&&"]],
+  ["copyOk=events.some(e=>e.ids.includes(x.id)&&e.uid!==x.uid);","copyOk=false;"]],
   /7b: the original with the copied id must stay possible/,'7'],
  ['unknown copies placed in the deck',[
-  [" st.deck[f]=fit(rest.splice(0,obs.foe.deckCount),obs.foe.deckCount).map(d=>card(d,f));\n const held=info.held.map(id=>CARDS.find(d=>d.id===id)).filter(Boolean);\n const copies=Array.from({length:foe.copies},()=>held.length?held[Math.floor(Math.random()*held.length)]:AI_UNKNOWN_CARD);",
-   " const held=info.held.map(id=>CARDS.find(d=>d.id===id)).filter(Boolean);\n const copies=Array.from({length:foe.copies},()=>held.length?held[Math.floor(Math.random()*held.length)]:AI_UNKNOWN_CARD);\n st.deck[f]=fit(sShuffle([...copies,...rest.splice(0,obs.foe.deckCount)]),obs.foe.deckCount).map(d=>card(d,f));copies.length=0;"]],
+  ["const deck=origRest.slice(0,D),hand=sShuffle([...origRest.slice(D),...rest.filter(x=>x.copy)]);","const mix=sShuffle([...rest]),deck=mix.slice(0,D),hand=mix.slice(D);"]],
   /7a: (decks contain no copies|exactly one copy)/,'7'],
  ['public hand size not kept',[
-  [" st.hand[f]=fit(sShuffle([...rest,...copies]),obs.foe.handCount).map(d=>card(d,f));"," st.hand[f]=sShuffle([...rest]).map(d=>card(d,f));"]],
+  ["const deck=origRest.slice(0,D),hand=sShuffle([...origRest.slice(D),...rest.filter(x=>x.copy)]);","const deck=origRest.slice(0,D),hand=sShuffle([...origRest.slice(D)]);"],
+  ["  if(hand.length!==H||deck.length!==D)continue;\n",""]],
   /opponent hand size|exactly one copy/,'7'],
  ['copy identities read from the real opponent hand',[
   [" try{\n  const info=strategistRemember(obs);"," try{\n  globalThis.__realCopies=G.hand[other(obs.side)].filter(c=>c.def.f!==obs.foe.faction).map(c=>c.def.id);\n  const info=strategistRemember(obs);"],
-  [" const held=info.held.map(id=>CARDS.find(d=>d.id===id)).filter(Boolean);"," const held=(globalThis.__realCopies||info.held).map(id=>CARDS.find(d=>d.id===id)).filter(Boolean);"]],
+  ["map(e=>{const r=Math.random();return {def:CARDS.find(d=>d.id===e.ids[Math.floor(r*e.ids.length)]),copy:true};});","map((e,i)=>{const r=Math.random(),id=(globalThis.__realCopies||[])[i]||e.ids[Math.floor(r*e.ids.length)];return {def:CARDS.find(d=>d.id===id),copy:true};});"]],
   /7e: worlds changed with the hidden copy identity/,'7'],
+ // PR #47 inspection at 117370a: the unknown-card lifecycle (section 8).
+ ['face-down candidates exclude copies (inspection finding)',[
+  ["const sets=strategistHiddenSets(pool,hiddenCount,info.budget.budget,U.length-D);","const sets=strategistHiddenSets(pool.filter(x=>!x.copy),hiddenCount,info.budget.budget,U.length-D);"]],
+  /8a: the face-down copy e1 must be a possible face-down card/,'8'],
+ ['copied card drawn from the whole hand history',[
+  ["const ids=[...new Set([...a.hand.filter(h=>!b.meRev.has(h.uid)).map(h=>h.id),...arrivals.filter(x=>revealDraw||x.kind!=='orig').map(x=>x.id)])];","const ids=[...new Set(turns.filter(x=>x<=t+1).flatMap(x=>m.byTurn[x].hand.map(h=>h.id)))];"]],
+  /8a: impossible copied card/,'8'],
+ ['start draw of the next turn treated as copyable',[
+  ["const revealDraw=d>=2||(d===1&&(b.handCount>=7||b.deck===0));","const revealDraw=true;"]],
+  /8a: impossible copied card/,'8'],
+ ['own deck from counts only (no history)',[
+  [" if(hist&&hist.complete){\n  const list=[]"," if(false){\n  const list=[]"]],
+  /own deck model fell back|own deck must equal/,'8'],
+ ['own arrival with the id of a known original not resolved as a copy',[
+  ["if(!own(x.id)||origIds.has(x.id)||firstOwn.has(x.id))forced.push(x)","if(!own(x.id))forced.push(x)"]],
+  /8d': an arrival with the id of a known original|own deck/,'8'],
+ ['ambiguous own arrivals treated as originals',[
+  ["else{const g={inst:mine,c:k};groups.push(g);for(const x of mine)x.kind=g;}","else for(const x of mine)x.kind='orig';"]],
+  /own deck/,'8'],
+ ['copy matched to itself or to a later Spy',[
+  ["return e.ids.includes(c.id)&&(c.uid==null||c.uid!==e.uid)&&(!c.turn||!e.turn||e.turn<c.turn);","return e.ids.includes(c.id);"]],
+  /8c: (the only unknown copy comes from the turn-3 Spy|exactly one unknown copy)/,'8'],
+ ['face-down copies cost nothing',[
+  ["if(sum+(x.def||x).cost>budget||o>maxOriginals)continue;cur.push(x);rec(j+1,sum+(x.def||x).cost,o);","const cost=x.copy?0:(x.def||x).cost;if(sum+cost>budget||o>maxOriginals)continue;cur.push(x);rec(j+1,sum+cost,o);"]],
+  /exceed the real energy|impossible face-down/,'5,8'],
 ];
-function check(source,sections='1,2,3,4,5,6,7'){
+function check(source,sections='1,2,3,4,5,6,7,8'){
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'gifted-strat-mut-'));
  try{
   fs.mkdirSync(path.join(dir,'scripts'));

@@ -16,7 +16,7 @@
 // STRATEGIST_CHECK_SECTIONS=1,2,3,4,5,6,7 (default all) lets check-strategist-mutations.cjs show which section
 // detects a defect on its own.
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const SECTIONS=new Set((process.env.STRATEGIST_CHECK_SECTIONS||'1,2,3,4,5,6,7').split(','));
+const SECTIONS=new Set((process.env.STRATEGIST_CHECK_SECTIONS||'1,2,3,4,5,6,7,8').split(','));
 const SRC=fs.readFileSync('tutorial.js','utf8')+'\n'+fs.readFileSync('game.js','utf8');
 const lcg=seed=>{let n=seed>>>0;return ()=>((n=(Math.imul(n,1664525)+1013904223)>>>0)/4294967296);};
 function boot(seed=1){
@@ -177,9 +177,11 @@ async function replayTo(seed,faction,seat,turn){
    t.run("initiative=()=>'p'");await t.run('endTurn()');
    assert.equal(t.run("G.board.flat().some(c=>c.def.id==='e1')"),false,'the victim was destroyed');
    // Works with the previous HEAD's API too (strategistWorld(obs,st,seen)), so the regression is shown on it.
+   const ff0=J(t,'strategistStats.foeFallbacks||0');
    const leak=J(t,`(()=>{const obs=observe('e'),info=strategistRemember(obs),out=[];for(let w=0;w<60;w++){const st=runAiSandbox(tacticianClone(tacticianState(obs)),Math.imul(w+1,0x9e3779b1)>>>0,()=>strategistWorld(obs,tacticianClone(tacticianState(obs)),info,[]));
      out.push(...st.hand.p.map(c=>c.def.id),...st.deck.p.map(c=>c.def.id),...st.board.flat().filter(c=>c.owner==='p'&&c.pending).map(c=>c.def.id));}return out.filter(id=>id==='e1').length;})()`);
    assert.equal(leak,0,`destroyed e1 must not return to the unknown cards (${sameReveal?'same reveal':'earlier reveal'})`);
+   assert.equal(J(t,'strategistStats.foeFallbacks||0'),ff0,`destroyed e1 must not return to the unknown cards: accounted for without the count-only fallback (${sameReveal?'same reveal':'earlier reveal'})`);
    const d=J(t,"observe('e').foe.destroyed?.map(x=>x.id)||[]");assert(d.includes('e1'),'destroyed card in the public history');
   }
   done.push('destroyed-card history');
@@ -248,6 +250,140 @@ async function replayTo(seed,faction,seat,turn){
    assert.deepEqual(J(t,'__bad'),[],`7d ${pf}/${ef} ${sSide}#${seed}: sampled world breaks public counts`);n+=t.run('__n');
   }
   done.push(`Spy copies (inspection case, Keeper mirror, destroyed copy, ${n} worlds in Keeper matches)`);
+ }
+
+ // 8. Lifecycle of unknown cards and Spy copies (PR #47 inspection at 117370a): face-down copies are
+ // possible, copy identities follow what our hand held at each opponent Spy reveal, our own copies keep our
+ // deck exact, every count is kept, and the real hidden state is always among the modelled states.
+ if(SECTIONS.has('8')){
+  // In-context helpers: scripted setup with chosen opening hands, the observer's memory (as the Strategist
+  // keeps it), and world samples marked with the copy flag. Sampling runs in the sandbox (no real RNG use).
+  const HELP=`registerAiStrategy({id:'hold',version:'test-1',legacy:true,plan(){}});
+   var __orig=new Set();
+   function __setup(pf,ef,ph,eh){FAST=true;newGame(pf);G.locs=['forge','waste','observatory'].map(id=>LOCS.find(l=>l.id===id));G.fac.p=pf;G.fac.e=ef;G.board=[[],[],[]];G.discard={p:[],e:[]};
+    for(const [o,f,ids] of [['p',pf,ph],['e',ef,eh]]){const all=shuffle(CARDS.filter(c=>c.f===f).map(d=>inst(d,o)));
+     G.hand[o]=ids.map(id=>all.find(c=>c.def.id===id));G.deck[o]=all.filter(c=>!ids.includes(c.def.id));}
+    G.spent={p:0,e:0};G.discount={p:0,e:0};__orig=new Set([...G.deck.p,...G.deck.e,...G.hand.p,...G.hand.e].map(c=>c.uid));}
+   const __card=(o,id)=>G.hand[o].find(c=>c.def.id===id);
+   function __worlds(o,n,k0=1){const obs=observe(o),info=strategistRemember(obs),f=o==='p'?'e':'p',out=[];
+    const f0=strategistStats.foeFallbacks||0,o0=strategistStats.ownFallbacks||0;
+    for(let w=0;w<n;w++){const st=runAiSandbox(tacticianClone(tacticianState(obs)),Math.imul(w+k0,0x9e3779b1)>>>0,()=>strategistWorld(obs,tacticianClone(tacticianState(obs)),info));
+     const m=c=>({id:c.def.id,copy:!!c.copy,cost:c.def.cost});
+     out.push({hidden:st.board.flat().filter(c=>c.owner===f&&c.pending).map(m),hand:st.hand[f].map(m),deck:st.deck[f].map(c=>c.def.id),myDeck:st.deck[o].map(c=>c.def.id).sort()});}
+    return {out,foeFallbacks:(strategistStats.foeFallbacks||0)-f0,ownFallbacks:(strategistStats.ownFallbacks||0)-o0,groups:info.hist?info.hist.groups.length:0,
+     pub:{hand:obs.foe.handCount,deck:obs.foe.deckCount,myDeck:obs.me.deckCount,hidden:obs.lanes.reduce((a,l)=>a+l.foePendingCount,0)},
+     real:{myDeck:G.deck[o].map(c=>c.def.id).sort(),hidden:G.board.flat().filter(c=>c.owner===f&&c.pending).map(c=>({id:c.def.id,copy:!__orig.has(c.uid)})),
+      hand:G.hand[f].map(c=>({id:c.def.id,copy:!__orig.has(c.uid)}))}};}`;
+  const FAC=J(boot(1),'Object.fromEntries(CARDS.map(d=>[d.id,d.f]))');
+  const W=(t,o,n,k0)=>J(t,`__worlds('${o}',${n},${k0||1})`);
+  const base=(r,tag)=>{assert.equal(r.foeFallbacks,0,tag+': opponent model found no legal sample (fallback)');assert.equal(r.ownFallbacks,0,tag+': own deck model fell back');
+   for(const w of r.out){assert.equal(w.hand.length,r.pub.hand,tag+': opponent hand size');assert.equal(w.deck.length,r.pub.deck,tag+': opponent deck size');
+    assert.equal(w.hidden.length,r.pub.hidden,tag+': face-down count');assert.equal(w.myDeck.length,r.pub.myDeck,tag+': own deck size');
+    assert(w.deck.every(id=>id!=='?'),tag+': unknown placeholder in the opponent deck');assert.equal(new Set(w.deck).size,w.deck.length,tag+': duplicate original in the deck');}};
+  const ownExact=(r,tag)=>{if(r.groups)assert(r.out.some(w=>w.myDeck.join()===r.real.myDeck.join()),tag+': real own deck not among modelled decks');
+   else assert(r.out.every(w=>w.myDeck.join()===r.real.myDeck.join()),tag+': own deck must equal the known remaining originals');};
+  const copiesOf=w=>[...w.hand,...w.hidden].filter(x=>x.copy).map(x=>x.id);
+  // 8a. Inspection case: Engineer p vs Keeper e. e skips turn 1, its Spy reveals on turn 2 and copies e1, the
+  // only card in our hand then; on turn 3 it places the copy face down. Also: cards we placed before the
+  // reveal (turn 1 and turn 2) and the start draw of turn 3 can never be the copied card.
+  {const t=boot(21);t.run(HELP);t.run(`__setup('eng','kee',['e1','e2','e3','e4'],['k3','k5','k9','k12']);setAiStrategy('e','hold');setAiStrategy('p','hold');`);
+   t.run("strategistRemember(observe('p'));for(const [id,l] of [['e2',0],['e3',1],['e4',2]])place('p',__card('p',id),l);");await t.run('endTurn()');
+   const d2=t.run("G.hand.p.find(c=>c.def.id!=='e1').def.id");
+   t.run(`strategistRemember(observe('p'));place('p',__card('p','${d2}'),0);place('e',__card('e','k3'),1);`);await t.run('endTurn()');
+   assert.deepEqual(J(t,"G.hand.e.filter(c=>c.def.f==='eng').map(c=>c.def.id)"),['e1'],'8a setup: the Spy copied e1');
+   const d3=t.run("G.hand.p.filter(c=>c.def.id!=='e1').pop().def.id");
+   t.run("place('e',G.hand.e.find(c=>c.def.id==='e1'),2);");
+   const r=W(t,'p',300);base(r,'8a');ownExact(r,'8a');
+   assert(r.out.some(w=>w.hidden.some(x=>x.id==='e1'&&x.copy)),'8a: the face-down copy e1 must be a possible face-down card');
+   assert(r.out.every(w=>copiesOf(w).length===1),'8a: exactly one unknown copy in hand or face down');
+   assert(r.out.every(w=>copiesOf(w).every(id=>id==='e1')),`8a: impossible copied card (placed before the Spy reveal, or the start draw ${d3})`);
+   assert(r.out.every(w=>w.deck.every(id=>FAC[id]==='kee')),'8a: decks hold originals only');
+   assert(r.out.every(w=>w.hidden.every(x=>x.copy||FAC[x.id]==='kee')),'8a: face-down originals are Keeper cards');
+   assert(r.out.some(w=>w.hand.some(x=>x.copy)),'8a: the copy may also still be in hand');}
+  // 8b. Keeper mirror: our k1 is copied and placed face down; the opponent also owns an unseen original k1.
+  {const t=boot(22);t.run(HELP);t.run(`__setup('kee','kee',['k1','k5','k9','k10'],['k3','k6','k8','k12']);setAiStrategy('e','hold');setAiStrategy('p','hold');`);
+   t.run("strategistRemember(observe('p'));for(const [id,l] of [['k5',0],['k9',1],['k10',2]])place('p',__card('p',id),l);");await t.run('endTurn()');
+   const d2=t.run("G.hand.p.find(c=>c.def.id!=='k1').def.id");
+   t.run(`strategistRemember(observe('p'));place('p',__card('p','${d2}'),0);place('e',__card('e','k3'),1);`);await t.run('endTurn()');
+   t.run("const c=G.hand.e.find(c=>c.def.id==='k1'&&!__orig.has(c.uid));place('e',c,2);");
+   const r=W(t,'p',300);base(r,'8b');ownExact(r,'8b');
+   assert(r.out.some(w=>w.hidden.some(x=>x.id==='k1'&&x.copy)),'8b: the face-down copy k1 must be possible');
+   assert(r.out.some(w=>w.hidden.some(x=>x.id==='k1'&&!x.copy)),'8b: the opponent original k1 face down must stay possible');
+   assert(r.out.every(w=>[...w.hand,...w.hidden].filter(x=>x.id==='k1'&&!x.copy).length+w.deck.filter(id=>id==='k1').length<=1),'8b: at most one original k1');
+   assert(r.out.every(w=>copiesOf(w).length===1&&copiesOf(w)[0]==='k1'),'8b: exactly one unknown copy, k1');}
+  // 8c. Copy of a Spy (Keeper mirror): the opponent's Spy copies our k3 on turn 2 (our hand: k3, k12); the
+  // copy is played and revealed on turn 3 while we hold k3 and one drawn card. The revealed k3 copy can only
+  // come from the turn-2 Spy (never from itself or a later Spy), so the remaining unknown copy comes from the
+  // turn-3 reveal: never k12, which we no longer held then.
+  {let t,d3;for(let seed=23;;seed++){assert(seed<80,'8c setup: no seed copies k3');
+    t=boot(seed);t.run(HELP);t.run(`__setup('kee','kee',['k3','k12','k5','k9'],['k3','k6','k8','k1']);setAiStrategy('e','hold');setAiStrategy('p','hold');`);
+    t.run("strategistRemember(observe('p'));for(const [id,l] of [['k5',0],['k9',1]])place('p',__card('p',id),l);");await t.run('endTurn()');
+    const d2=t.run("G.hand.p.find(c=>c.def.id!=='k3'&&c.def.id!=='k12').def.id");
+    t.run(`strategistRemember(observe('p'));place('p',__card('p','${d2}'),0);place('e',__card('e','k3'),1);`);await t.run('endTurn()');
+    if(J(t,"G.hand.e.filter(c=>!__orig.has(c.uid)).map(c=>c.def.id)").join()==='k3')break;}
+   d3=t.run("G.hand.p.find(c=>c.def.id!=='k3'&&c.def.id!=='k12').def.id");
+   t.run(`strategistRemember(observe('p'));place('p',__card('p','k12'),0);place('e',G.hand.e.find(c=>!__orig.has(c.uid)),2);`);await t.run('endTurn()');
+   const cp=J(t,"G.hand.e.filter(c=>!__orig.has(c.uid)).map(c=>c.def.id)");assert.equal(cp.length,1,'8c setup: the copied Spy copied a card');
+   assert(['k3',d3].includes(cp[0]),'8c setup: copied from our turn-3 hand');
+   const r=W(t,'p',300);base(r,'8c');ownExact(r,'8c');
+   assert(r.out.every(w=>copiesOf(w).length===1),'8c: exactly one unknown copy');
+   assert(r.out.every(w=>['k3',d3].includes(copiesOf(w)[0])),`8c: the only unknown copy comes from the turn-3 Spy (k3 or ${d3}), never k12`);
+   assert(r.out.some(w=>copiesOf(w)[0]===cp[0]),'8c: the real copy must be possible');}
+  // 8d. Our own Spy copies (Keeper mirror and another faction), placed and taken back before planning: our
+  // deck stays exact; an own-faction copy arriving with a draw is ambiguous only within that pair.
+  for(const [ef,eh] of [['kee',['k5','k6','k8','k12']],['eng',['e5','e6','e8','e9']]]){
+   const t=boot(24);t.run(HELP);t.run(`__setup('kee','${ef}',['k3','k1','k2','k4'],${JSON.stringify(eh)});setAiStrategy('e','hold');setAiStrategy('p','hold');`);
+   t.run("strategistRemember(observe('p'));place('p',__card('p','k3'),0);");await t.run('endTurn()');
+   const mine=J(t,"G.hand.p.filter(c=>!__orig.has(c.uid)).map(c=>c.def.id)");assert.equal(mine.length,1,'8d setup: our Spy copied a card');
+   t.run("const c=G.hand.p.find(c=>!__orig.has(c.uid));place('p',c,1);unplace(c);");
+   const r=W(t,'p',200);base(r,'8d '+ef);ownExact(r,'8d '+ef);
+   if(ef!=='kee')assert.equal(r.groups,0,'8d: an other-faction copy is never ambiguous');}
+  // 8d'. Our Spy copies an opponent card whose id we already hold as an original (Keeper mirror): the arrival
+  // is certainly the copy, the start draw an original, so our deck stays exact (no ambiguity).
+  {let t;for(let seed=30;;seed++){assert(seed<90,"8d' setup: no seed copies an id we hold");
+    t=boot(seed);t.run(HELP);t.run(`__setup('kee','kee',['k3','k1','k2','k4'],['k1','k2','k4','k12']);setAiStrategy('e','hold');setAiStrategy('p','hold');`);
+    t.run("strategistRemember(observe('p'));place('p',__card('p','k3'),0);");await t.run('endTurn()');
+    const cp=J(t,"G.hand.p.filter(c=>!__orig.has(c.uid)).map(c=>c.def.id)");if(cp.length===1&&['k1','k2','k4'].includes(cp[0]))break;}
+   const r=W(t,'p',200);base(r,"8d'");assert.equal(r.groups,0,"8d': an arrival with the id of a known original is a copy (no ambiguous group)");ownExact(r,"8d'");}
+  // 8e. The opponent's copy is discarded (Astromancer hero effect) or destroyed after its reveal: no unknown
+  // copy remains, nothing falls back.
+  for(const how of ['discard','destroy']){
+   const t=boot(25);t.run(HELP);t.run(`__setup('ast','kee',['a1','a2','a4','a6'],['k3','k6','k8','k12']);setAiStrategy('e','hold');setAiStrategy('p','hold');`);
+   t.run("strategistRemember(observe('p'));for(const [id,l] of [['a2',0],['a4',1],['a6',0]])place('p',__card('p',id),l);");await t.run('endTurn()');
+   const d2=t.run("G.hand.p.find(c=>c.def.id!=='a1').def.id");
+   t.run(`strategistRemember(observe('p'));place('p',__card('p','${d2}'),0);place('e',__card('e','k3'),1);`);await t.run('endTurn()');
+   if(how==='discard')t.run("const c=G.hand.e.find(c=>!__orig.has(c.uid));G.hand.e.splice(G.hand.e.indexOf(c),1);G.discard.e.push(c);draw('e');");
+   else{t.run("strategistRemember(observe('p'));place('e',G.hand.e.find(c=>!__orig.has(c.uid)),2);");await t.run('endTurn()');t.run("destroy(G.board[2].find(c=>c.owner==='e'&&!__orig.has(c.uid)));");}
+   const r=W(t,'p',100);base(r,'8e '+how);ownExact(r,'8e '+how);
+   assert(r.out.every(w=>copiesOf(w).length===0&&[...w.hand,...w.hidden].every(x=>FAC[x.id]==='kee')),`8e ${how}: no unknown copy remains`);}
+  // 8f. Real matches with a Keeper on either side (mirror included), the observer on p and on e, against the
+  // Tactician and the Novice. At every planning point: counts, no fallback, exact own deck, copied cards only
+  // from what we really held, and the real opponent hidden cards and copies are among the modelled states.
+  const cov={points:0,spyTurns:new Set(),hiddenCopy:0,handCopy:0,ownCopy:0,hidden1:0,sides:new Set(),combos:new Set()};
+  for(const [pf,ef] of [['kee','kee'],['kee','eng'],['eng','kee'],['kee','ast'],['ast','kee']])for(const obsSide of ['p','e'])for(const opp of ['tactician','novice'])for(const seed of [61,62,63,64,65,66,67,68,69,70,71,72]){
+   const t=boot(seed*7+pf.length);t.run(HELP);const tag=`8f ${pf}/${ef} ${obsSide} vs ${opp}#${seed}`;
+   t.run(`var __held=new Set(),__checks=[],__spy=[];const __sp=CARDS.find(d=>d.id==='k3'),__or=__sp.onReveal;__sp.onReveal=c=>{if(G===__realG)__spy.push(G.turn);__or(c);};var __realG=null,__bud={};const __bt=beginTurnState;beginTurnState=function(){__bt();if(G===__realG)for(const o of ['p','e'])__bud[o]=G.turn+(G.discount[o]?1:0)-surchargeOf(o);};
+    registerAiStrategy({id:'watch',version:'test-1',name:'watch',plan(ctx){for(const c of G.hand['${obsSide}'])__held.add(c.def.id);__checks.push(__worlds('${obsSide}',40));
+     const r=__checks[__checks.length-1];if(r.real.hidden.some(x=>x.copy)||r.real.hand.some(x=>x.copy)||r.real.hidden.length===1)r.extra=__worlds('${obsSide}',500,1000);
+     r.bud=G.turn===1?1:__bud['${obsSide==='p'?'e':'p'}'];r.held=[...__held];for(const c of G.hand['${obsSide}'])if(!__orig.has(c.uid))r.ownCopy=true;tacticianPlan(ctx);},choose:(ctx,req)=>tacticianPick(ctx.side,req,false)});
+    FAST=true;newGame('${pf}');G.fac.e='${ef}';G.board.forEach(l=>{for(let i=l.length-1;i>=0;i--)if(l[i].owner==='e')l.splice(i,1);});
+    G.deck.e=shuffle(CARDS.filter(c=>c.f==='${ef}').map(d=>inst(d,'e')));G.hand.e=[];for(let i=0;i<4;i++)draw('e');G.spent.e=0;G.discount.e=0;
+    __orig=new Set([...G.deck.p,...G.deck.e,...G.hand.p,...G.hand.e].map(c=>c.uid));
+    __realG=G;setAiStrategy('${obsSide}','watch');setAiStrategy('${obsSide==='p'?'e':'p'}','${opp}');if('${obsSide}'==='e')strategistMemory.e={turn:0,byTurn:{}};aiPlan('e');`);
+   for(let i=0;i<6;i++)await t.run("(async()=>{aiPlan('p');await endTurn()})()");
+   const checks=J(t,'__checks');for(const x of J(t,'__spy'))cov.spyTurns.add(x);cov.sides.add(obsSide);cov.combos.add(pf+'/'+ef);
+   for(const [i,r] of checks.entries()){const tg=`${tag} turn ${i+1}`;cov.points++;base(r,tg);ownExact(r,tg);if(r.ownCopy)cov.ownCopy++;
+    for(const w of r.out)for(const id of copiesOf(w))assert(r.held.includes(id),`${tg}: copied card ${id} never was in our hand`);
+    for(const w of [...r.out,...(r.extra?r.extra.out:[])])if(w.hidden.length&&w.hidden.every(x=>x.id!=='?'))assert(w.hidden.reduce((a,x)=>a+x.cost,0)<=r.bud,`${tg}: face-down cards exceed the real energy ${r.bud}: ${JSON.stringify(w.hidden)}`);
+    if(r.extra){base(r.extra,tg+' (extended)');const all=[...r.out,...r.extra.out];
+     for(const x of r.real.hidden.filter(x=>x.copy)){cov.hiddenCopy++;assert(all.some(w=>w.hidden.some(y=>y.copy&&y.id===x.id)),`${tg}: real face-down copy ${x.id} never modelled`);}
+     for(const x of r.real.hand.filter(x=>x.copy)){cov.handCopy++;assert(all.some(w=>w.hand.some(y=>y.copy&&y.id===x.id)),`${tg}: real copy ${x.id} in hand never modelled`);}
+     if(r.real.hidden.length===1){cov.hidden1++;assert(all.some(w=>w.hidden[0].id===r.real.hidden[0].id),`${tg}: real face-down card ${r.real.hidden[0].id} never modelled`);}}
+   }
+  }
+  assert(cov.hiddenCopy>=5&&cov.handCopy>=20&&cov.ownCopy>0&&cov.hidden1>0,'8f coverage: real face-down copies, copies in hand, own copies and single face-down cards occurred');
+  assert(cov.spyTurns.size>=4,'8f coverage: Spy reveals on at least four different turns');
+  done.push(`unknown-card lifecycle (8a–8e scripted; ${cov.points} real planning points in ${cov.combos.size} faction pairs, both sides; Spy reveals on turns ${[...cov.spyTurns].sort().join(',')}; ${cov.hiddenCopy} face-down and ${cov.handCopy} in-hand real copies, ${cov.hidden1} single face-down cards modelled)`);
  }
  console.log(`PASS: strategist ${done.join(', ')}; ${plans} plans: phase plan, no illegal action, no side effects, no real RNG use`);
 })().catch(e=>{console.error(e);process.exitCode=1});
