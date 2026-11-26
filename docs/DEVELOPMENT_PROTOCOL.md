@@ -12,3 +12,8 @@ ChatGPT — продуктовый Architect; Claude Code — основной B
 - APPROVE — только после всех применимых обязательных и утверждённых проверок.
 
 Обязательный CI не останавливается ради экономии.
+
+## Handoff Protocol (Issue #54)
+Game Design (GD) фиксирует утверждённые Product Owner продуктовые решения в Issue со статусом DESIGN APPROVED; только Architect определяет READY, очередь и технические критерии. Builders Guild (BG) — роль Builder (Claude Code).
+
+После каждого действия по разработке BG, Inspector и GD завершают пользовательский отчёт (включая промежуточные, неуспешные и заблокированные действия) отдельным копируемым однострочным блоком: `BG <номер PR> done`, `Inspector <номер PR> done` или `GD <номер Issue> done`. Форматы до создания PR/Issue и порядок записи в GitHub — в docs/ORCHESTRATOR_POLICY.md, раздел «Передача управления Architect (Handoff Protocol)». Architect читает GitHub; Product Owner не копирует полные отчёты. Команда передаёт статус и не заменяет независимый вердикт, CI или разрешение на публикацию.
