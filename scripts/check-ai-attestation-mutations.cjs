@@ -24,7 +24,7 @@ const M=[
  ['fallback cause not recorded','game.js',[["strategistStats.fallbackCauses[why]=(strategistStats.fallbackCauses[why]||0)+1;",""]],/6: cause recorded/,'6'],
  ['attest-ai does not count fallbacks','scripts/attest-ai.cjs',[["fallbacks:d('fallbacks')","fallbacks:0"]],/6: attest-ai must count every forced fallback/,'6'],
  ['tournament-ai does not count fallbacks','scripts/tournament-ai.cjs',[["out.fallbacks=d('fallbacks');","out.fallbacks=0;"]],/6: tournament-ai must count every forced fallback/,'6'],
- ['checkpoint resume recomputes finished configurations','scripts/attest-ai.cjs',[["const queue=CONFIGS.map((_,i)=>i).filter(i=>!results.has(i));","const queue=CONFIGS.map((_,i)=>i);"]],/7: (no duplicate configuration|18 configuration lines)/,'7'],
+ ['checkpoint resume recomputes finished configurations','scripts/attest-ai.cjs',[["const queue=UNITS.filter(u=>!results.has(ukey(u)));","const queue=[...UNITS];"]],/7: (no duplicate configuration|18 configuration lines)/,'7'],
 ];
 function copyTree(dst){
  fs.mkdirSync(path.join(dst,'scripts'),{recursive:true});

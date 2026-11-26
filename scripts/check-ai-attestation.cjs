@@ -221,8 +221,16 @@ function ctxWith(extra=''){const c=L.makeContext(src());c.run(TEST+extra);return
   assert(refused,'7: a different seed must be refused');
   const ls=fs.readFileSync(ck,'utf8').split('\n');ls[4]='{corrupt';fs.writeFileSync(ck,ls.join('\n'));
   let corrupt=false;try{run();}catch(e){corrupt=/corrupt/.test(String(e.stderr));}assert(corrupt,'7: a corrupt middle line must stop the run');
+  // Chunked units give the same result as whole configurations; a deadline stops with exit 3 and the rerun completes.
+  const det=out=>{const d=JSON.parse(out);delete d.aggregate.perf;return JSON.stringify([d.byCombination,d.strategistCounters,d.aggregate]);};
+  const base=['--pair=strategist:tactician','--mode=symmetric','--games=2','--seed=31','--workers=2',`--game=${GAME}`];
+  const ex=(extra)=>execFileSync(process.execPath,[path.join(__dirname,'attest-ai.cjs'),...base,...extra],{cwd:path.dirname(GAME),encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:1<<28});
+  const whole=det(ex(['--chunk=0'])),ck2=path.join(tmp,'ck2.jsonl');
+  let stopped=false;try{ex(['--chunk=1',`--checkpoint=${ck2}`,'--deadline=0']);}catch(e){stopped=e.status===3&&/incomplete/.test(String(e.stderr));}
+  assert(stopped,'7: a reached deadline must stop with exit code 3');
+  assert.equal(det(ex(['--chunk=1',`--checkpoint=${ck2}`])),whole,'7: chunked and resumed result must equal the whole-configuration result');
   fs.rmSync(tmp,{recursive:true,force:true});
-  done.push('attestation checkpoint (resume, duplicates, identity, partial and corrupt lines)');
+  done.push('attestation checkpoint (resume, duplicates, identity, partial and corrupt lines; chunks and deadline)');
  }
  console.log(`PASS: AI attestation checks: ${done.join('; ')}`);
 })().catch(e=>{console.error(e);process.exit(1);});
