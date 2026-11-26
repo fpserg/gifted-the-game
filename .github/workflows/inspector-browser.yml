@@ -1,0 +1,113 @@
+name: Inspector browser measurement
+
+# GIFTED-INSPECTOR-CI (#51). Started manually by the independent Inspector; never a required status.
+# The measurer comes from trusted main; the code under inspection is the exact commit given as input and is
+# only read as text and executed inside an offline headless Chrome page. No secrets, read-only token,
+# credentials are never persisted, no pull_request_target. Any error, SHA mismatch or missing measurement
+# fails the run. The run reports numbers; the Inspector evaluates them.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Exact 40-character commit SHA of the code under inspection
+        required: true
+        type: string
+      strategy:
+        description: AI strategy to measure against the Novice
+        required: true
+        default: strategist
+        type: string
+      games:
+        description: Games per CPU rate (even; seats alternate p/e)
+        required: true
+        default: '60'
+        type: string
+      rates:
+        description: CPU throttling rates
+        required: true
+        default: '1,4,6'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inspector-browser-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    name: inspector-browser-measure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - name: Require the trusted main measurer and valid inputs
+        env:
+          REF: ${{ github.ref }}
+          SHA: ${{ inputs.sha }}
+          STRATEGY: ${{ inputs.strategy }}
+          GAMES: ${{ inputs.games }}
+          RATES: ${{ inputs.rates }}
+        run: |
+          [ "$REF" = "refs/heads/main" ] || { echo "::error::run this workflow from main only (got $REF)"; exit 1; }
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be a full 40-character lowercase commit SHA"; exit 1; }
+          [[ "$STRATEGY" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "::error::invalid strategy"; exit 1; }
+          [[ "$GAMES" =~ ^[0-9]+$ ]] || { echo "::error::invalid games"; exit 1; }
+          [[ "$RATES" =~ ^[0-9]+(\.[0-9]+)?(,[0-9]+(\.[0-9]+)?)*$ ]] || { echo "::error::invalid rates"; exit 1; }
+
+      - name: Check out the measurer (trusted main)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: tool
+          persist-credentials: false
+
+      - name: Check out the code under inspection
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Record environment
+        run: |
+          node --version
+          /usr/bin/google-chrome --version
+          echo "ImageOS=$ImageOS ImageVersion=$ImageVersion"
+          nproc; lscpu | grep 'Model name' || true
+
+      - name: Self-test the measurer (positive and failure scenarios, trusted code only)
+        run: node tool/scripts/check-inspector-browser.cjs /usr/bin/google-chrome
+
+      - name: Measure the code under inspection
+        env:
+          SHA: ${{ inputs.sha }}
+          STRATEGY: ${{ inputs.strategy }}
+          GAMES: ${{ inputs.games }}
+          RATES: ${{ inputs.rates }}
+        run: >-
+          node tool/scripts/inspector-browser-measure.cjs --target=target --expect-sha="$SHA"
+          --chrome=/usr/bin/google-chrome --strategy="$STRATEGY" --games="$GAMES" --rates="$RATES"
+          --out=inspector-browser-out --timeout-min=60
+
+      - name: Publish summary
+        if: always()
+        run: |
+          if [ -f inspector-browser-out/summary.md ]; then cat inspector-browser-out/summary.md >> "$GITHUB_STEP_SUMMARY";
+          elif [ -f inspector-browser-out/error.json ]; then { echo '## Inspector browser measurement FAILED'; echo '```'; cat inspector-browser-out/error.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY";
+          else echo '## Inspector browser measurement FAILED before measuring' >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Upload results and raw timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspector-browser-${{ inputs.sha }}-run${{ github.run_id }}-${{ github.run_attempt }}
+          path: inspector-browser-out/
+          if-no-files-found: warn
+          retention-days: 90
