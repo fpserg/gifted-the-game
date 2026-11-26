@@ -1,4 +1,4 @@
-name: Inspector browser measurement
+name: Inspector browser measurement (pre-main trial, temporary)
 
 # GIFTED-INSPECTOR-CI (#51). Started by the independent Inspector; never a required status.
 # Triggers: workflow_dispatch (Actions UI / gh), or a PR comment by the repository owner:
@@ -10,6 +10,8 @@ name: Inspector browser measurement
 # No secrets, read-only token, credentials never persisted, no pull_request_target. Any error, SHA mismatch,
 # unconfirmed or missing decision fails the run. The run reports numbers; the Inspector evaluates them.
 on:
+  push:
+    branches: ['inspector-trial/52-db7f894']
   workflow_dispatch:
     inputs:
       sha:
@@ -45,7 +47,7 @@ jobs:
   measure:
     name: inspector-browser-measure
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' || github.event_name == 'workflow_dispatch' ||
       (github.event.issue.pull_request && github.event.comment.author_association == 'OWNER' &&
        startsWith(github.event.comment.body, '/inspector-browser '))
     runs-on: ubuntu-24.04
@@ -56,13 +58,13 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           REF: ${{ github.ref }}
-          IN_SHA: ${{ inputs.sha }}
-          IN_STRATEGY: ${{ inputs.strategy }}
-          IN_GAMES: ${{ inputs.games }}
-          IN_RATES: ${{ inputs.rates }}
+          IN_SHA: a0a2386219352c8e0995e107232283dfa3376d51
+          IN_STRATEGY: tactician
+          IN_GAMES: '60'
+          IN_RATES: '1,4,6'
           BODY: ${{ github.event.comment.body }}
         run: |
-          [ "$REF" = "refs/heads/main" ] || { echo "::error::run this workflow from main only (got $REF)"; exit 1; }
+          [ "$REF" = "refs/heads/inspector-trial/52-db7f894" ] || { echo "::error::run this workflow from main only (got $REF)"; exit 1; }
           SHA="$IN_SHA" STRATEGY="${IN_STRATEGY:-strategist}" GAMES="${IN_GAMES:-60}" RATES="${IN_RATES:-1,4,6}"
           if [ "$EVENT" = "issue_comment" ]; then
             line="$(printf '%s\n' "$BODY" | head -n 1 | tr -d '\r')"
