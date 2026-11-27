@@ -1,0 +1,5 @@
+tool_sha=0a72966b6e89af7f12d9d62297a295f1f8c75708
+target_sha=ebd6d4edf1c068d2d4969162ca1c34255ab3d326
+strategies=novice,tactician,strategist
+games=60
+rates=1,4,6
