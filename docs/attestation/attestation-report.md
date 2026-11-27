@@ -1,6 +1,7 @@
 # GIFTED-004D — комплексная аттестация ИИ: данные
 
-Сформировано 2026-11-27T08:37:01.835Z. game.js SHA-256 `84644290779b3141b4d5a3fc905bd43ac0421b5c4716b1fd5b2f8064a3b23ee6`; tutorial.js `6b7a35d773faa889361d8c3da85e3cbc1a1a56191d7538328a52263f638f1e57`; attest-lib `8ae74df13d9a72e5fea946979038c0d15e660226a2300402b4f1139e614dca0a`; attest-ai `91b22ef529e6f4529a83d349c0b863fdbb3440d03f33acdea0f163b6b434a61c`.
+Сформировано 2026-11-27T09:00:30.094Z. game.js SHA-256 `84644290779b3141b4d5a3fc905bd43ac0421b5c4716b1fd5b2f8064a3b23ee6`; tutorial.js `6b7a35d773faa889361d8c3da85e3cbc1a1a56191d7538328a52263f638f1e57`; attest-lib `8ae74df13d9a72e5fea946979038c0d15e660226a2300402b4f1139e614dca0a`; attest-ai (раннер) — `91b22ef529e6f4529a83d349c0b863fdbb3440d03f33acdea0f163b6b434a61c`, `c01ca3a930c7f90fcaae9dea41c5b6be3aa16968e5acb3ce8067dd7d9313eb7f`.
+Проверка выборки (attest-verify.cjs): 12 прогонов, 360 072 партий — расписание, идентичность кода, строгий checkpoint (без пропусков и дубликатов) и совпадение результата с checkpoint; SHA-256 checkpoint — в attestation-summary.json, поле validation.
 Среда: Node v22.23.5, 2× Intel(R) Xeon(R) Processor @ 2.10GHz. Методика и ограничения — docs/ai-attestation.md.
 
 ## 1. Результаты пар (стратегия A против B)

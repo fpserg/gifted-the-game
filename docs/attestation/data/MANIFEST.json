@@ -1,0 +1,284 @@
+{
+ "issue": "#56",
+ "kind": "gifted-attestation-data",
+ "runs": [
+  {
+   "name": "novice-novice-pve",
+   "games": 30006,
+   "units": 18,
+   "chunk": null,
+   "checkpointLines": 19,
+   "runnerSha256": "91b22ef529e6f4529a83d349c0b863fdbb3440d03f33acdea0f163b6b434a61c",
+   "runner": "scripts/attest-runners/attest-ai-91b22ef5.cjs",
+   "resultSha256": "d15a2cb058ec5d9acecf9fec9e7b0f22e1f67c267dd297b7633d81de00f37d9c",
+   "checkpointSha256": "cb34ea3b40d2da52d56f46500640872237616fcf87a1d49448b0dfb7001c45b8"
+  },
+  {
+   "name": "novice-novice-symmetric",
+   "games": 30006,
+   "units": 18,
+   "chunk": null,
+   "checkpointLines": 19,
+   "runnerSha256": "91b22ef529e6f4529a83d349c0b863fdbb3440d03f33acdea0f163b6b434a61c",
+   "runner": "scripts/attest-runners/attest-ai-91b22ef5.cjs",
+   "resultSha256": "4a76e53d618fc9925fc9cbcf6a24af62d24e701bf414aeddd8f1a91852fb6510",
+   "checkpointSha256": "99990f005c015f32156f25d70a5ee6cb9ee13a6832da4d066f952869f2051cfa"
+  },
+  {
+   "name": "tactician-novice-pve",
+   "games": 30006,
+   "units": 18,
+   "chunk": null,
+   "checkpointLines": 19,
+   "runnerSha256": "91b22ef529e6f4529a83d349c0b863fdbb3440d03f33acdea0f163b6b434a61c",
+   "runner": "scripts/attest-runners/attest-ai-91b22ef5.cjs",
+   "resultSha256": "0639228f7a53d76e0547ecdbba8fa556c61984335be4112e02c87bb8ff4fc964",
+   "checkpointSha256": "f61532ea80e9eaf9df39631447f878c19cd1a9047d90c7c20657d455896f91a9"
+  },
+  {
+   "name": "tactician-novice-symmetric",
+   "games": 30006,
+   "units": 18,
+   "chunk": null,
+   "checkpointLines": 19,
+   "runnerSha256": "91b22ef529e6f4529a83d349c0b863fdbb3440d03f33acdea0f163b6b434a61c",
+   "runner": "scripts/attest-runners/attest-ai-91b22ef5.cjs",
+   "resultSha256": "83e7f635f35b1e3ada35a0acda6f642a9eaa9871a53c689e88d75f70a865f03b",
+   "checkpointSha256": "dddb201d383757c90a668889312ab7a1e0edd256f28a69a5d123a4010b7ebfc0"
+  },
+  {
+   "name": "strategist-novice-pve",
+   "games": 30006,
+   "units": 18,
+   "chunk": null,
+   "checkpointLines": 19,
+   "runnerSha256": "91b22ef529e6f4529a83d349c0b863fdbb3440d03f33acdea0f163b6b434a61c",
+   "runner": "scripts/attest-runners/attest-ai-91b22ef5.cjs",
+   "resultSha256": "b6d09465681b90f9563ce9f6ebabdf74f8b5b363316b4a7d3d7e9f80235f64de",
+   "checkpointSha256": "8c7af671f766cc1e2130a8d469fe0b8a2698f654f0cca05178ac7ae5b7ad5564"
+  },
+  {
+   "name": "strategist-novice-symmetric",
+   "games": 30006,
+   "units": 612,
+   "chunk": 50,
+   "checkpointLines": 613,
+   "runnerSha256": "c01ca3a930c7f90fcaae9dea41c5b6be3aa16968e5acb3ce8067dd7d9313eb7f",
+   "runner": "scripts/attest-ai.cjs",
+   "resultSha256": "184ad4892dab3102b0ebae06a74f0b1f04ee22b22463a8c35d43f4206edcdfa7",
+   "checkpointSha256": "94c0cec272e7ae044c53eee3acf2ab9fb686216c0244d3cb5df4c08610200867"
+  },
+  {
+   "name": "tactician-tactician-pve",
+   "games": 30006,
+   "units": 612,
+   "chunk": 50,
+   "checkpointLines": 613,
+   "runnerSha256": "c01ca3a930c7f90fcaae9dea41c5b6be3aa16968e5acb3ce8067dd7d9313eb7f",
+   "runner": "scripts/attest-ai.cjs",
+   "resultSha256": "db441cfbc2064932030e4b3ebbac1bee00edc1aa8158b6b50023e3988add7890",
+   "checkpointSha256": "203ca9e0bd121d23c0741fd9d351cbb52654ba010944bc0d440af1f4ca353976"
+  },
+  {
+   "name": "tactician-tactician-symmetric",
+   "games": 30006,
+   "units": 612,
+   "chunk": 50,
+   "checkpointLines": 613,
+   "runnerSha256": "c01ca3a930c7f90fcaae9dea41c5b6be3aa16968e5acb3ce8067dd7d9313eb7f",
+   "runner": "scripts/attest-ai.cjs",
+   "resultSha256": "2fb14f3f3ae42f51883799dca41483e9d8894a58d69f5aa03915098cbb5b52ac",
+   "checkpointSha256": "fd0cf5509258bc515bc65e2ea60ac1c8b8b233c7401a7cda032d9be1ad592d1c"
+  },
+  {
+   "name": "strategist-tactician-pve",
+   "games": 30006,
+   "units": 612,
+   "chunk": 50,
+   "checkpointLines": 613,
+   "runnerSha256": "c01ca3a930c7f90fcaae9dea41c5b6be3aa16968e5acb3ce8067dd7d9313eb7f",
+   "runner": "scripts/attest-ai.cjs",
+   "resultSha256": "63adc0f25f8796c620ddf7407b0e5f2915144c40e09141dabf2b95f698fafcc0",
+   "checkpointSha256": "0072f8c2ab3a0bb6050bce739f4bc818daab4f6d8d4b02d7fdb526e0756157a3"
+  },
+  {
+   "name": "strategist-tactician-symmetric",
+   "games": 30006,
+   "units": 612,
+   "chunk": 50,
+   "checkpointLines": 613,
+   "runnerSha256": "c01ca3a930c7f90fcaae9dea41c5b6be3aa16968e5acb3ce8067dd7d9313eb7f",
+   "runner": "scripts/attest-ai.cjs",
+   "resultSha256": "f558dea4506e52d12010e5e7b15610749f07dac684521911450eaa71274fe9ad",
+   "checkpointSha256": "dce75b39fc9877aae45c6b3dbb52da64d95af331d7e4fd754c2335aa117be962"
+  },
+  {
+   "name": "strategist-strategist-pve",
+   "games": 30006,
+   "units": 612,
+   "chunk": 50,
+   "checkpointLines": 613,
+   "runnerSha256": "c01ca3a930c7f90fcaae9dea41c5b6be3aa16968e5acb3ce8067dd7d9313eb7f",
+   "runner": "scripts/attest-ai.cjs",
+   "resultSha256": "50a213bec170ec8012f21dca3a60d1e345b375ec42fb8f5754988939c05b518b",
+   "checkpointSha256": "fd19c3106f71ae24a5640f6e3d9df59c5b08c18082ae1c6f118d570ea8bef3d3"
+  },
+  {
+   "name": "strategist-strategist-symmetric",
+   "games": 30006,
+   "units": 612,
+   "chunk": 50,
+   "checkpointLines": 613,
+   "runnerSha256": "c01ca3a930c7f90fcaae9dea41c5b6be3aa16968e5acb3ce8067dd7d9313eb7f",
+   "runner": "scripts/attest-ai.cjs",
+   "resultSha256": "dae6ac3eda1053537d4a426bc21b46eff15d5568e50f8bdaf2d8c9e326313674",
+   "checkpointSha256": "6a6c41b3482d8fb9b376a4d5c7134c1b179f64e36bac903a0720ce5c5fc52cb7"
+  }
+ ],
+ "files": [
+  {
+   "file": "novice-novice-pve.ckpt.gz",
+   "bytes": 300128,
+   "sha256": "9f54d4c8b299090e4b9c0b24031711b65bae7cfb0170fee3b1cb87a575b02a13",
+   "contentSha256": "cb34ea3b40d2da52d56f46500640872237616fcf87a1d49448b0dfb7001c45b8"
+  },
+  {
+   "file": "novice-novice-pve.json.gz",
+   "bytes": 77406,
+   "sha256": "e6f6c8bad1a35d800c8af49d5b3a4aa3835666fa332cb1bc9f1387d42f4f8f2f",
+   "contentSha256": "d15a2cb058ec5d9acecf9fec9e7b0f22e1f67c267dd297b7633d81de00f37d9c"
+  },
+  {
+   "file": "novice-novice-symmetric.ckpt.gz",
+   "bytes": 304282,
+   "sha256": "5dcdd61c1675825cde854f0ea957dec6dc81f4f0e2f559693564f48edb56a49b",
+   "contentSha256": "99990f005c015f32156f25d70a5ee6cb9ee13a6832da4d066f952869f2051cfa"
+  },
+  {
+   "file": "novice-novice-symmetric.json.gz",
+   "bytes": 78061,
+   "sha256": "54c127ac19aaa649b87ad354495a4876dab1dab9cb551f6c5d55e8ce932b5238",
+   "contentSha256": "4a76e53d618fc9925fc9cbcf6a24af62d24e701bf414aeddd8f1a91852fb6510"
+  },
+  {
+   "file": "strategist-novice-pve.ckpt.gz",
+   "bytes": 294722,
+   "sha256": "319aa51f34d9d362e34094a66c7e7b9771ab5af3714a5bf211637d47f4f1a839",
+   "contentSha256": "8c7af671f766cc1e2130a8d469fe0b8a2698f654f0cca05178ac7ae5b7ad5564"
+  },
+  {
+   "file": "strategist-novice-pve.json.gz",
+   "bytes": 108291,
+   "sha256": "ebfa92137ac1d7ce7655277da7610d2d98c25f64a78c53f1922f8816e049459a",
+   "contentSha256": "b6d09465681b90f9563ce9f6ebabdf74f8b5b363316b4a7d3d7e9f80235f64de"
+  },
+  {
+   "file": "strategist-novice-symmetric.ckpt.gz",
+   "bytes": 2032071,
+   "sha256": "39a77e8be1d354adf789bdff69031eec2da541803436ac0d0f8e68029aa4c97e",
+   "contentSha256": "94c0cec272e7ae044c53eee3acf2ab9fb686216c0244d3cb5df4c08610200867"
+  },
+  {
+   "file": "strategist-novice-symmetric.json.gz",
+   "bytes": 119990,
+   "sha256": "363d53274cbc0cf07a36c296fc7e5bc85757d7ae46a67232eca00038f24fa2e4",
+   "contentSha256": "184ad4892dab3102b0ebae06a74f0b1f04ee22b22463a8c35d43f4206edcdfa7"
+  },
+  {
+   "file": "strategist-strategist-pve.ckpt.gz",
+   "bytes": 1785377,
+   "sha256": "1f2acb81e1e76732441a277d1790d9bf57f55a85b41306b93e23fea0bdce426c",
+   "contentSha256": "fd19c3106f71ae24a5640f6e3d9df59c5b08c18082ae1c6f118d570ea8bef3d3"
+  },
+  {
+   "file": "strategist-strategist-pve.json.gz",
+   "bytes": 64881,
+   "sha256": "c5b04e8b3d62d09783721a77b9358f1bb850771a8ec3e5a1f422bf3663a1b864",
+   "contentSha256": "50a213bec170ec8012f21dca3a60d1e345b375ec42fb8f5754988939c05b518b"
+  },
+  {
+   "file": "strategist-strategist-symmetric.ckpt.gz",
+   "bytes": 1767270,
+   "sha256": "6cb01d4d74ac1401a668dff2de1b2c21f5a6e829570736911d610f1a961f0654",
+   "contentSha256": "6a6c41b3482d8fb9b376a4d5c7134c1b179f64e36bac903a0720ce5c5fc52cb7"
+  },
+  {
+   "file": "strategist-strategist-symmetric.json.gz",
+   "bytes": 69230,
+   "sha256": "fb3e8c1b32bccfd1b4542c9d10cb284df33e28f15f6d70b9f9c641c89d9f19ef",
+   "contentSha256": "dae6ac3eda1053537d4a426bc21b46eff15d5568e50f8bdaf2d8c9e326313674"
+  },
+  {
+   "file": "strategist-tactician-pve.ckpt.gz",
+   "bytes": 2033527,
+   "sha256": "021ba616523196e62cf1ab1c628ba31ddbf9c1c1c57e74e86a570b832d83257b",
+   "contentSha256": "0072f8c2ab3a0bb6050bce739f4bc818daab4f6d8d4b02d7fdb526e0756157a3"
+  },
+  {
+   "file": "strategist-tactician-pve.json.gz",
+   "bytes": 128334,
+   "sha256": "b75c0eb7ff60a2854a73ad1102fb337bab6797a419b19f96392a8db9e4e54893",
+   "contentSha256": "63adc0f25f8796c620ddf7407b0e5f2915144c40e09141dabf2b95f698fafcc0"
+  },
+  {
+   "file": "strategist-tactician-symmetric.ckpt.gz",
+   "bytes": 2040601,
+   "sha256": "e292187bbc5923a2b8565a03d635f57429b37fa2283410497fadca6d962c4aed",
+   "contentSha256": "dce75b39fc9877aae45c6b3dbb52da64d95af331d7e4fd754c2335aa117be962"
+  },
+  {
+   "file": "strategist-tactician-symmetric.json.gz",
+   "bytes": 128757,
+   "sha256": "194963862e689761e209751b6bfddcbfed8bcff3b8e5fb384d2f5b384f499cd8",
+   "contentSha256": "f558dea4506e52d12010e5e7b15610749f07dac684521911450eaa71274fe9ad"
+  },
+  {
+   "file": "tactician-novice-pve.ckpt.gz",
+   "bytes": 342991,
+   "sha256": "fed76feaf7f1feb8c4d572a8e9db88f907f327c639ecdfec3d56cd67d8fe7771",
+   "contentSha256": "f61532ea80e9eaf9df39631447f878c19cd1a9047d90c7c20657d455896f91a9"
+  },
+  {
+   "file": "tactician-novice-pve.json.gz",
+   "bytes": 136444,
+   "sha256": "fbbfc63e1b9a90f08046985618aaaca3aa4aaec5824a6b9ebc81b459a1edff17",
+   "contentSha256": "0639228f7a53d76e0547ecdbba8fa556c61984335be4112e02c87bb8ff4fc964"
+  },
+  {
+   "file": "tactician-novice-symmetric.ckpt.gz",
+   "bytes": 343588,
+   "sha256": "8472341ac865ec844d5ea65d3b57a8973eccceeb5b7069cb549b4c36081bcec8",
+   "contentSha256": "dddb201d383757c90a668889312ab7a1e0edd256f28a69a5d123a4010b7ebfc0"
+  },
+  {
+   "file": "tactician-novice-symmetric.json.gz",
+   "bytes": 135594,
+   "sha256": "bdbaec97ba2a5f92feea79cb5e2e00e2abd3481957c7cfd43ddc422d0a7340c4",
+   "contentSha256": "83e7f635f35b1e3ada35a0acda6f642a9eaa9871a53c689e88d75f70a865f03b"
+  },
+  {
+   "file": "tactician-tactician-pve.ckpt.gz",
+   "bytes": 1858778,
+   "sha256": "7388e691a7437a7a0cb64f601262ec54ccb3ae77b3cfcd6cbf3bc6d104348bb3",
+   "contentSha256": "203ca9e0bd121d23c0741fd9d351cbb52654ba010944bc0d440af1f4ca353976"
+  },
+  {
+   "file": "tactician-tactician-pve.json.gz",
+   "bytes": 107246,
+   "sha256": "ce28805bd757bde53659493ef90d1ba35544730606bb530c83468c83ceb0b556",
+   "contentSha256": "db441cfbc2064932030e4b3ebbac1bee00edc1aa8158b6b50023e3988add7890"
+  },
+  {
+   "file": "tactician-tactician-symmetric.ckpt.gz",
+   "bytes": 1865550,
+   "sha256": "127a988b78ba6031577f9304c56336fc5f27f2c7e0c6ed6317a5a400be0c84f9",
+   "contentSha256": "fd0cf5509258bc515bc65e2ea60ac1c8b8b233c7401a7cda032d9be1ad592d1c"
+  },
+  {
+   "file": "tactician-tactician-symmetric.json.gz",
+   "bytes": 106970,
+   "sha256": "062ff1e423bc9084d1ede71e2414be0293d01d8777c6804e325031435730d889",
+   "contentSha256": "2fb14f3f3ae42f51883799dca41483e9d8894a58d69f5aa03915098cbb5b52ac"
+  }
+ ]
+}

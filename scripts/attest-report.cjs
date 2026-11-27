@@ -1,12 +1,19 @@
 #!/usr/bin/env node
 // GIFTED-004D (#56): attestation report from attest-ai.cjs results.
-// Usage: node scripts/attest-report.cjs --out=<dir> <result.json> ...   (one file per pair and mode)
+// Usage: node scripts/attest-report.cjs --out=<dir> <result.json> ...   (all 12 runs; .json or .json.gz, each with its
+// checkpoint <name>.ckpt[.gz] next to it; the set is validated by attest-verify.cjs before anything is aggregated)
 // Writes <dir>/attestation-summary.json (machine-readable, input of attest-compare.cjs) and
 // <dir>/attestation-report.md (tables). Methodology notes are in docs/ai-attestation.md.
 'use strict';
 const fs=require('fs'),path=require('path'),L=require('./attest-lib.cjs');
 const args=process.argv.slice(2),out=(args.find(a=>a.startsWith('--out='))||'--out=.').slice(6),files=args.filter(a=>!a.startsWith('--'));
-const runs=files.map(f=>JSON.parse(fs.readFileSync(f,'utf8')));
+// Independent validation of the whole sample before aggregation (attest-verify.cjs): complete schedule, each
+// pair/mode once, one code identity, strict checkpoints, results equal to their checkpoints. Any failure stops here.
+const V=require('./attest-verify.cjs');
+let verified;try{verified=V.verifySet(files);}catch(e){console.error('attest-report: refusing to aggregate: '+e.message);process.exit(1);}
+// Canonical order (the schedule), whatever the order of the arguments.
+const ordered=verified.map(v=>files.find(f=>path.basename(f).replace(/\.gz$/,'')===v.name+'.json'));
+const runs=ordered.map(f=>JSON.parse(V.readMaybeGz(f).toString('utf8')));
 const LEVELS=['novice','tactician','strategist'],FACS=L.FACS,NAMES={novice:'Новичок',tactician:'Тактик',strategist:'Стратег'};
 const FN={eng:'Инженер',ast:'Астромантка',kee:'Хранитель'};
 const z=1.959963984540054;
@@ -19,7 +26,7 @@ const dec=r=>{const n=r.wins+r.losses,p=n?r.wins/n:null,[lo,hi]=wilson(r.wins,n)
 const diff=(a,b)=>{const pa=a.winRateDecisive,pb=b.winRateDecisive,se=Math.sqrt(pa*(1-pa)/a.decisive+pb*(1-pb)/b.decisive),d=pa-pb;return {delta:d,ci95:[d-z*se,d+z*se],z:se?d/se:0};};
 const key=r=>r.pair.join(':')+'/'+r.mode;
 const byKey=Object.fromEntries(runs.map(r=>[key(r),r]));
-const S={issue:'#56',generated:new Date().toISOString(),runs:[],performance:{},fallbacks:{},legality:{},cards:{},combos:{},locations:{},momentum:{},energy:{},saved:{},targets:[],modeDifference:[]};
+const S={issue:'#56',generated:new Date().toISOString(),validation:verified.map(({parsed,identity,...v})=>v),runs:[],performance:{},fallbacks:{},legality:{},cards:{},combos:{},locations:{},momentum:{},energy:{},saved:{},targets:[],modeDifference:[]};
 for(const r of runs){
  const id=r.identity;
  S.runs.push({pair:r.pair,mode:r.mode,seed:r.seed,gamesPerConfig:r.gamesPerConfig,games:r.overall.games,gameSha256:id.gameSha256,tutorialSha256:id.tutorialSha256,libSha256:id.libSha256,scriptSha256:id.scriptSha256,
@@ -71,7 +78,8 @@ fs.writeFileSync(path.join(out,'attestation-summary.json'),JSON.stringify(S,null
 // ---- markdown ----
 const md=[];const P=(...l)=>md.push(...l);
 const R0=S.runs[0];
-P('# GIFTED-004D — комплексная аттестация ИИ: данные','',`Сформировано ${S.generated}. game.js SHA-256 \`${R0.gameSha256}\`; tutorial.js \`${R0.tutorialSha256}\`; attest-lib \`${R0.libSha256}\`; attest-ai \`${R0.scriptSha256}\`.`,
+P('# GIFTED-004D — комплексная аттестация ИИ: данные','',`Сформировано ${S.generated}. game.js SHA-256 \`${R0.gameSha256}\`; tutorial.js \`${R0.tutorialSha256}\`; attest-lib \`${R0.libSha256}\`; attest-ai (раннер) — ${[...new Set(S.validation.map(v=>v.runnerSha256))].map(x=>'\`'+x+'\`').join(', ')}.`,
+ `Проверка выборки (attest-verify.cjs): ${S.validation.length} прогонов, ${num(S.validation.reduce((a,v)=>a+v.games,0))} партий — расписание, идентичность кода, строгий checkpoint (без пропусков и дубликатов) и совпадение результата с checkpoint; SHA-256 checkpoint — в attestation-summary.json, поле validation.`,
  `Среда: Node ${R0.environment.node}, ${R0.environment.cpus}× ${R0.environment.cpu}. Методика и ограничения — docs/ai-attestation.md.`,'');
 P('## 1. Результаты пар (стратегия A против B)','','Доля побед A среди решающих партий с 95% интервалом Уилсона. Партии: 9 сочетаний фракций × 2 назначения сторон × '+R0.gamesPerConfig+'.','',
  '| Пара A–B | Режим | Seed | Партий | Победы A | Поражения A | Ничьи | A, решающие | 95% ДИ | A за p | A за e | Зеркала |','|---|---|---|---|---|---|---|---|---|---|---|---|');
