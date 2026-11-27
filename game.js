@@ -393,7 +393,9 @@ registerAiStrategy({id:TACTICIAN.id,version:TACTICIAN.version,name:'Тактик
 // the horizon: two turns ahead on turns 1-3, the end of the match from turn 4. The candidate with
 // the best mean result is played; anything unexpected falls back to the Tactician plan.
 const STRATEGIST={id:'strategist',version:'strategist-1',candidates:6,worlds:12,finalists:3,finalWorlds:24,horizonEarly:2,modelAnswer:true};
-const strategistStats={calls:0,fallbacks:0,rollouts:0};
+// Counters only (GIFTED-004D): no decision reads them. fallbackCauses counts plan exceptions by message;
+// fallbacksWithoutPlan counts exceptions raised before any candidate existed (nothing is played then).
+const strategistStats={calls:0,fallbacks:0,rollouts:0,fallbackCauses:{},fallbacksWithoutPlan:0};
 // Per side: the first observation of each turn of the current match (for the opponent's discount and
 // surcharge at the start of a turn). Reset when a new match starts.
 const strategistMemory={p:{turn:0,byTurn:{}},e:{turn:0,byTurn:{}}};
@@ -652,6 +654,8 @@ function strategistPlan(ctx){
  }catch(err){
   strategistStats.fallbacks++;
   for(const [uid,l] of fallback||[])if(!ctx.play(uid,l))break;
+  const why=String(err&&err.message||err).slice(0,160);strategistStats.fallbackCauses[why]=(strategistStats.fallbackCauses[why]||0)+1;
+  if(!fallback)strategistStats.fallbacksWithoutPlan++;
  }
 }
 registerAiStrategy({id:STRATEGIST.id,version:STRATEGIST.version,name:'Стратег',plan:strategistPlan,choose:(ctx,req)=>tacticianPick(ctx.side,req,false)});
