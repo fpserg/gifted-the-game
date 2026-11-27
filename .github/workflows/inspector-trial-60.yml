@@ -160,8 +160,9 @@ jobs:
         env:
           STRATS: ${{ steps.req.outputs.strategies }}
         run: |
+          BASES="$(cd "$RUNNER_TEMP/ib-out" 2>/dev/null && for d in baseline-*; do [ -d "$d" ] && printf '%s ' "$d"; done)"
           set -f
-          for S in ${STRATS//,/ } $(cd "$RUNNER_TEMP/ib-out" && ls -d baseline-* 2>/dev/null); do
+          for S in ${STRATS//,/ } $BASES; do
             O="$RUNNER_TEMP/ib-out/$S"
             if [ -f "$O/summary.md" ]; then
               cat "$O/summary.md" >> "$GITHUB_STEP_SUMMARY"
