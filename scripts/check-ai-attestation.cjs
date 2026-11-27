@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // GIFTED-004D (#56): honesty and contour checks for the AI attestation.
 // Usage: node scripts/check-ai-attestation.cjs   (sections via ATTEST_CHECK_SECTIONS=1,2,...; default all)
+// Diagnostics: a failure names its section; a failed child process (runner, tournament) is reported with its
+// command, exit status or signal and the tail of its stderr, and its full stderr/stdout are saved under
+// $ATTEST_CHECK_DIAG (default: the system temp directory). Checked by check-ai-attestation-diagnostics.cjs.
 //  1 rule identity: the attestation harness (pve) reproduces tournament-ai.cjs game for game, so the
 //    contour (telemetry, timing, legality checks) neither changes the rules nor consumes randomness;
 //    the in-memory patches match exactly once and are inert in pve.
@@ -23,6 +26,25 @@ const GAME=process.env.ATTEST_GAME||path.join(ROOT,'game.js'),TUT=path.join(path
 const SECTIONS=new Set((process.env.ATTEST_CHECK_SECTIONS||'1,2,3,4,5,6,7').split(','));
 const LEVELS=['novice','tactician','strategist'];
 const done=[];
+// Diagnostics (no check is relaxed: the same commands and assertions; only what is kept on failure changes).
+let SECTION='setup',DIAG=null;
+const sec=(n,name)=>{SECTION=`${n} (${name})`;};
+const diagDir=()=>DIAG||(DIAG=fs.mkdtempSync(path.join(process.env.ATTEST_CHECK_DIAG||os.tmpdir(),'check-ai-attestation-diag-')));
+// Run a child Node process with its stderr kept. An unexpected failure becomes an error naming the section, the
+// command, the status or signal and the stderr tail, with the full output saved to a log file. With
+// expectFailure the original error is returned unchanged (the caller asserts on it).
+function child(label,args,opts,expectFailure=false){
+ try{return execFileSync(process.execPath,args,{...opts,encoding:'utf8',stdio:['ignore','pipe','pipe']});}
+ catch(e){
+  if(expectFailure)throw e;
+  const f=path.join(diagDir(),`section${SECTION.split(' ')[0]}-${label.replace(/[^A-Za-z0-9]+/g,'_')}.log`);
+  fs.writeFileSync(f,[`section: ${SECTION}`,`command: ${[process.execPath,...args].join(' ')}`,`cwd: ${opts.cwd}`,`status: ${e.status} signal: ${e.signal}`,
+   '--- stderr ---',String(e.stderr||''),'--- stdout (first 20000 characters) ---',String(e.stdout||'').slice(0,20000)].join('\n'));
+  const tail=String(e.stderr||'').trim().split('\n').slice(-20).join('\n');
+  const err=new Error(`section ${SECTION}: child ${label} exited with status ${e.status}${e.signal?' signal '+e.signal:''}\n--- stderr tail ---\n${tail}\n--- full log: ${f}`);
+  err.status=e.status;err.stderr=e.stderr;err.childLog=f;throw err;
+ }
+}
 const src=()=>L.buildSource(GAME,TUT);
 const J=(c,e)=>JSON.parse(c.run(`JSON.stringify(${e})`));
 // In-context test helpers: decide on a clone (placements only, nothing applied to G), perturb hidden state.
@@ -49,11 +71,11 @@ function ctxWith(extra=''){const c=L.makeContext(src());c.run(TEST+extra);return
 
 (async()=>{
  // 1. Rule identity against tournament-ai.cjs (same seeds, same configuration order).
- if(SECTIONS.has('1')){
+ if(SECTIONS.has('1')){sec(1,'rule identity');
   for(const [a,b] of [['strategist','novice'],['tactician','novice'],['novice','novice']]){
    const seed=4242,games=2;
-   const t=JSON.parse(execFileSync(process.execPath,[path.join(__dirname,'tournament-ai.cjs'),a,b,String(games),String(seed),'2',GAME],{cwd:path.dirname(GAME),encoding:'utf8',stdio:['ignore','pipe','ignore'],maxBuffer:1<<26}));
-   const r=JSON.parse(execFileSync(process.execPath,[path.join(__dirname,'attest-ai.cjs'),`--pair=${a}:${b}`,'--mode=pve',`--games=${games}`,`--seed=${seed}`,'--workers=2',`--game=${GAME}`],{cwd:path.dirname(GAME),encoding:'utf8',stdio:['ignore','pipe','ignore'],maxBuffer:1<<28}));
+   const t=JSON.parse(child(`tournament-ai ${a}:${b}`,[path.join(__dirname,'tournament-ai.cjs'),a,b,String(games),String(seed),'2',GAME],{cwd:path.dirname(GAME),maxBuffer:1<<26}));
+   const r=JSON.parse(child(`attest-ai ${a}:${b}`,[path.join(__dirname,'attest-ai.cjs'),`--pair=${a}:${b}`,'--mode=pve',`--games=${games}`,`--seed=${seed}`,'--workers=2',`--game=${GAME}`],{cwd:path.dirname(GAME),maxBuffer:1<<28}));
    const tr=t.byCombination.map(x=>[x.t,x.n,x.seat,x.wins,x.losses,x.draws].join()),ar=r.byCombination.map(x=>[x.fa,x.fb,x.aSide,x.aWins,x.aLosses,x.draws].join());
    assert.deepEqual(ar,tr,`1: attestation pve must reproduce tournament-ai.cjs for ${a}:${b}`);
    assert.equal(r.violations,0);assert.equal(r.legalRefused,0);
@@ -62,7 +84,7 @@ function ctxWith(extra=''){const c=L.makeContext(src());c.run(TEST+extra);return
   done.push('rule identity vs tournament-ai (3 pairs × 18 configurations)');
  }
  // 2. Symmetric mode.
- if(SECTIONS.has('2')){
+ if(SECTIONS.has('2')){sec(2,'symmetric mode');
   let checks=0,answerModels=0;
   for(const [pS,eS] of [['strategist','tactician'],['tactician','strategist'],['novice','strategist'],['strategist','strategist']])for(const seed of [7,8]){
    const c=ctxWith(String.raw`
@@ -100,7 +122,7 @@ function ctxWith(extra=''){const c=L.makeContext(src());c.run(TEST+extra);return
   done.push(`symmetric mode (${checks} turn checks: snapshot fidelity, p independent of e's real plan; answer modelled ${answerModels}×)`);
  }
  // 3. Hidden information invariance.
- if(SECTIONS.has('3')){
+ if(SECTIONS.has('3')){sec(3,'hidden information');
   let n=0;
   for(const mode of ['pve','symmetric'])for(const S of LEVELS)for(const side of ['p','e'])for(const seed of [3,4]){
    const opp=S==='novice'?'tactician':'novice',strat=side==='p'?{p:S,e:opp}:{p:opp,e:S};
@@ -129,7 +151,7 @@ function ctxWith(extra=''){const c=L.makeContext(src());c.run(TEST+extra);return
   done.push(`hidden information (${n} games × 6 turns × 2 perturbations: 3 levels, both sides, both modes)`);
  }
  // 4. Sandbox and RNG isolation of a plan.
- if(SECTIONS.has('4')){
+ if(SECTIONS.has('4')){sec(4,'sandbox and RNG isolation');
   let n=0;
   for(const S of LEVELS)for(const side of ['p','e']){
    const opp=S==='strategist'?'tactician':'strategist',strat=side==='p'?{p:S,e:opp}:{p:opp,e:S};
@@ -151,7 +173,7 @@ function ctxWith(extra=''){const c=L.makeContext(src());c.run(TEST+extra);return
   done.push(`sandbox and RNG isolation (${n} level/side combinations, both modes)`);
  }
  // 5. Legality in real games of every pair and mode.
- if(SECTIONS.has('5')){
+ if(SECTIONS.has('5')){sec(5,'legality');
   let games=0;
   for(const mode of ['pve','symmetric'])for(let i=0;i<LEVELS.length;i++)for(let j=i;j<LEVELS.length;j++){
    const c=ctxWith(),acc={};
@@ -167,7 +189,7 @@ function ctxWith(extra=''){const c=L.makeContext(src());c.run(TEST+extra);return
   done.push(`legality (${games} games, 6 pairs × 2 modes)`);
  }
  // 6. Strategist fallback: forced exceptions and both runners' counters.
- if(SECTIONS.has('6')){
+ if(SECTIONS.has('6')){sec(6,'Strategist fallback');
   const c=ctxWith(String.raw`var __force=null;const __sw=strategistWorld;strategistWorld=function(...a){if(__force==='world')throw Error('forced world failure');return __sw(...a);};
    const __tps=tacticianPlans;tacticianPlans=function(...a){if(__force==='plans')throw Error('forced plans failure');return __tps(...a);};`);
   c.setSeed(91);c.run(`setAiStrategy('p','strategist');setAiStrategy('e','novice');FAST=true;__beginGame('pve');__opp='eng';newGame('kee');__opp=null;`);
@@ -194,19 +216,19 @@ function ctxWith(extra=''){const c=L.makeContext(src());c.run(TEST+extra);return
   fs.copyFileSync(TUT,path.join(tmp,'tutorial.js'));
   const g=fs.readFileSync(GAME,'utf8'),hook='function strategistWorld(obs,st,info){';assert.equal(g.split(hook).length,2,'6: strategistWorld signature');
   fs.writeFileSync(path.join(tmp,'game.js'),g.replace(hook,hook+"throw Error('forced in runner test');"));
-  const r=JSON.parse(execFileSync(process.execPath,[path.join(__dirname,'attest-ai.cjs'),'--pair=strategist:novice','--mode=pve','--games=1','--seed=3','--workers=2',`--game=${path.join(tmp,'game.js')}`],{cwd:tmp,encoding:'utf8',stdio:['ignore','pipe','ignore'],maxBuffer:1<<28}));
+  const r=JSON.parse(child('attest-ai forced fallback',[path.join(__dirname,'attest-ai.cjs'),'--pair=strategist:novice','--mode=pve','--games=1','--seed=3','--workers=2',`--game=${path.join(tmp,'game.js')}`],{cwd:tmp,maxBuffer:1<<28}));
   assert(r.strategistCounters.calls>0&&r.strategistCounters.fallbacks===r.strategistCounters.calls,`6: attest-ai must count every forced fallback (${r.strategistCounters.fallbacks}/${r.strategistCounters.calls})`);
   assert.equal(r.strategistCounters.causes['forced in runner test'],r.strategistCounters.fallbacks,'6: attest-ai causes');
-  const t=JSON.parse(execFileSync(process.execPath,[path.join(__dirname,'tournament-ai.cjs'),'strategist','novice','1','3','2',path.join(tmp,'game.js')],{cwd:tmp,encoding:'utf8',stdio:['ignore','pipe','ignore'],maxBuffer:1<<26}));
+  const t=JSON.parse(child('tournament-ai forced fallback',[path.join(__dirname,'tournament-ai.cjs'),'strategist','novice','1','3','2',path.join(tmp,'game.js')],{cwd:tmp,maxBuffer:1<<26}));
   assert(t.fallbacks.plans>0&&t.fallbacks.plans===t.planTimeMs.calls,`6: tournament-ai must count every forced fallback (${t.fallbacks.plans}/${t.planTimeMs.calls})`);
   assert.equal(t.fallbacks.causes['forced in runner test'],t.fallbacks.plans,'6: tournament-ai causes');
   fs.rmSync(tmp,{recursive:true,force:true});
   done.push(`Strategist fallback (forced world and plan failures; both runners count ${r.strategistCounters.fallbacks} / ${t.fallbacks.plans} forced fallbacks with causes)`);
  }
  // 7. Attestation checkpoint.
- if(SECTIONS.has('7')){
+ if(SECTIONS.has('7')){sec(7,'attestation checkpoint');
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'attest-ck-')),ck=path.join(tmp,'ck.jsonl');
-  const run=(extra=[])=>execFileSync(process.execPath,[path.join(__dirname,'attest-ai.cjs'),'--pair=tactician:novice','--mode=symmetric','--games=1','--seed=19','--workers=2',`--game=${GAME}`,`--checkpoint=${ck}`,...extra],{cwd:path.dirname(GAME),encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:1<<28});
+  const run=(extra=[],expectFailure=false)=>child('attest-ai checkpoint',[path.join(__dirname,'attest-ai.cjs'),'--pair=tactician:novice','--mode=symmetric','--games=1','--seed=19','--workers=2',`--game=${GAME}`,`--checkpoint=${ck}`,...extra],{cwd:path.dirname(GAME),maxBuffer:1<<28},expectFailure);
   // Everything except wall-clock data (elapsed time, planning-time histograms) is deterministic.
   const strip=s=>{const d=JSON.parse(s);delete d.elapsedSeconds;delete d.checkpoint;delete d.aggregate.perf;return JSON.stringify(d);};
   const full=strip(run());
@@ -220,17 +242,21 @@ function ctxWith(extra=''){const c=L.makeContext(src());c.run(TEST+extra);return
   let refused=false;try{execFileSync(process.execPath,[path.join(__dirname,'attest-ai.cjs'),'--pair=tactician:novice','--mode=symmetric','--games=1','--seed=20','--workers=2',`--game=${GAME}`,`--checkpoint=${ck}`],{cwd:path.dirname(GAME),stdio:'pipe'});}catch(e){refused=/refusing to resume/.test(String(e.stderr));}
   assert(refused,'7: a different seed must be refused');
   const ls=fs.readFileSync(ck,'utf8').split('\n');ls[4]='{corrupt';fs.writeFileSync(ck,ls.join('\n'));
-  let corrupt=false;try{run();}catch(e){corrupt=/corrupt/.test(String(e.stderr));}assert(corrupt,'7: a corrupt middle line must stop the run');
+  let corrupt=false;try{run([],true);}catch(e){corrupt=/corrupt/.test(String(e.stderr));}assert(corrupt,'7: a corrupt middle line must stop the run');
   // Chunked units give the same result as whole configurations; a deadline stops with exit 3 and the rerun completes.
   const det=out=>{const d=JSON.parse(out);delete d.aggregate.perf;return JSON.stringify([d.byCombination,d.strategistCounters,d.aggregate]);};
   const base=['--pair=strategist:tactician','--mode=symmetric','--games=2','--seed=31','--workers=2',`--game=${GAME}`];
-  const ex=(extra)=>execFileSync(process.execPath,[path.join(__dirname,'attest-ai.cjs'),...base,...extra],{cwd:path.dirname(GAME),encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:1<<28});
+  const ex=(extra,expectFailure=false)=>child('attest-ai chunks',[path.join(__dirname,'attest-ai.cjs'),...base,...extra],{cwd:path.dirname(GAME),maxBuffer:1<<28},expectFailure);
   const whole=det(ex(['--chunk=0'])),ck2=path.join(tmp,'ck2.jsonl');
-  let stopped=false;try{ex(['--chunk=1',`--checkpoint=${ck2}`,'--deadline=0']);}catch(e){stopped=e.status===3&&/incomplete/.test(String(e.stderr));}
+  let stopped=false;try{ex(['--chunk=1',`--checkpoint=${ck2}`,'--deadline=0'],true);}catch(e){stopped=e.status===3&&/incomplete/.test(String(e.stderr));}
   assert(stopped,'7: a reached deadline must stop with exit code 3');
   assert.equal(det(ex(['--chunk=1',`--checkpoint=${ck2}`])),whole,'7: chunked and resumed result must equal the whole-configuration result');
   fs.rmSync(tmp,{recursive:true,force:true});
   done.push('attestation checkpoint (resume, duplicates, identity, partial and corrupt lines; chunks and deadline)');
  }
  console.log(`PASS: AI attestation checks: ${done.join('; ')}`);
-})().catch(e=>{console.error(e);process.exit(1);});
+})().catch(e=>{
+ console.error(`FAIL in section ${SECTION}`);console.error(e&&e.stack||e);
+ try{const f=path.join(diagDir(),'failure.txt');fs.writeFileSync(f,`section: ${SECTION}\n${e&&e.stack||e}\n${e&&e.childLog?'child log: '+e.childLog+'\n':''}`);console.error(`diagnostics: ${DIAG}`);}catch{}
+ process.exit(1);
+});
