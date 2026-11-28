@@ -1,0 +1,30 @@
+check	exit	seconds
+node --check game.js	0	0.0
+node --check tutorial.js	0	0.0
+node --check service-worker.js	0	0.0
+check-ai-architecture 2923eaf	0	4.3
+check-ai-attestation-diagnostics	0	8.2
+check-ai-attestation-mutations	0	241.8
+check-ai-attestation	0	173.0
+check-ai-mutations	0	17.3
+check-attest-verify	0	119.1
+check-first-battle-ui	0	0.0
+check-first-battle	0	0.5
+check-gadalka-regression	0	0.4
+check-gadalka	0	0.1
+check-initiative-regression	1	0.5
+check-initiative	0	0.1
+check-inspector-browser --mode=local	0	32.5
+check-medallion-assets	0	0.2
+check-menu-assets-smoke	0	0.0
+check-menu-remediation	0	0.1
+check-normal-regression	0	0.5
+check-phone-page	0	2.1
+check-pwa-navigation-cache	0	0.0
+check-simulate-balance	0	2.0
+check-strategist-mutations	0	134.2
+check-strategist	0	115.4
+check-tactician	0	5.1
+check-tournament-checkpoint	0	3.3
+check-ui	0	0.1
+attest-verify data	0	16.8

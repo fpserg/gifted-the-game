@@ -1,0 +1,1942 @@
+{
+ "generated": "2026-11-28T05:57:45.144Z",
+ "typescript": "6.0.3",
+ "files": {
+  "game.js": {
+   "lines": 1058,
+   "chars": 86066
+  },
+  "tutorial.js": {
+   "lines": 72,
+   "chars": 10039
+  }
+ },
+ "sections": [
+  {
+   "name": "data",
+   "from": 1,
+   "to": 75
+  },
+  {
+   "name": "rules-state",
+   "from": 76,
+   "to": 152
+  },
+  {
+   "name": "ai-core",
+   "from": 153,
+   "to": 237
+  },
+  {
+   "name": "ai-tactician",
+   "from": 238,
+   "to": 386
+  },
+  {
+   "name": "ai-strategist",
+   "from": 387,
+   "to": 662
+  },
+  {
+   "name": "astro",
+   "from": 663,
+   "to": 766
+  },
+  {
+   "name": "reveal-match",
+   "from": 767,
+   "to": 857
+  },
+  {
+   "name": "ui-render",
+   "from": 858,
+   "to": 942
+  },
+  {
+   "name": "ui-screens",
+   "from": 943,
+   "to": 1017
+  },
+  {
+   "name": "ui-input",
+   "from": 1018,
+   "to": 1058
+  }
+ ],
+ "declarations": 146,
+ "references": 1007,
+ "sectionEdges": {
+  "data": {
+   "rules-state": 46
+  },
+  "rules-state": {
+   "tutorial": 11,
+   "data": 6,
+   "ai-core": 1,
+   "ui-render": 1
+  },
+  "ai-core": {
+   "data": 2,
+   "rules-state": 61,
+   "tutorial": 2
+  },
+  "ai-tactician": {
+   "data": 8,
+   "rules-state": 35,
+   "reveal-match": 3,
+   "ai-core": 2
+  },
+  "ai-strategist": {
+   "data": 8,
+   "ai-tactician": 15,
+   "rules-state": 13,
+   "reveal-match": 6,
+   "ai-core": 5
+  },
+  "astro": {
+   "rules-state": 46,
+   "ui-render": 3,
+   "data": 4,
+   "ai-core": 2
+  },
+  "reveal-match": {
+   "rules-state": 42,
+   "data": 4,
+   "astro": 2,
+   "tutorial": 8,
+   "ui-render": 5,
+   "ui-screens": 5
+  },
+  "ui-render": {
+   "data": 12,
+   "rules-state": 89,
+   "astro": 21,
+   "tutorial": 3,
+   "ui-screens": 14,
+   "reveal-match": 1
+  },
+  "ui-screens": {
+   "ui-render": 17,
+   "data": 14,
+   "tutorial": 5,
+   "rules-state": 18
+  },
+  "ui-input": {
+   "ui-render": 6,
+   "rules-state": 18,
+   "ui-screens": 5,
+   "data": 1
+  },
+  "tutorial": {
+   "ui-screens": 9,
+   "ui-render": 12,
+   "rules-state": 41,
+   "data": 4,
+   "reveal-match": 1
+  }
+ },
+ "stronglyConnected": [
+  [
+   "reveal-match",
+   "ai-core",
+   "astro",
+   "ui-render",
+   "ui-screens",
+   "tutorial",
+   "rules-state",
+   "data"
+  ]
+ ],
+ "tangles": [
+  {
+   "a": "data",
+   "b": "rules-state",
+   "aToB": 46,
+   "bToA": 6,
+   "examplesAtoB": [
+    "power",
+    "cardsIn",
+    "buff",
+    "allRev",
+    "draw",
+    "G",
+    "say",
+    "laneTotal"
+   ],
+   "examplesBtoA": [
+    "rndOf",
+    "FACTIONS",
+    "LOCS",
+    "CARDS"
+   ]
+  },
+  {
+   "a": "rules-state",
+   "b": "ui-render",
+   "aToB": 1,
+   "bToA": 89,
+   "examplesAtoB": [
+    "render"
+   ],
+   "examplesBtoA": [
+    "power",
+    "now",
+    "G",
+    "capOf",
+    "loc",
+    "laneWinner",
+    "locationRuleDisabled",
+    "canPlay"
+   ]
+  },
+  {
+   "a": "rules-state",
+   "b": "tutorial",
+   "aToB": 11,
+   "bToA": 41,
+   "examplesAtoB": [
+    "gameMode",
+    "Tutorial"
+   ],
+   "examplesBtoA": [
+    "logLines",
+    "newGame",
+    "G",
+    "canPlay",
+    "effCost",
+    "place",
+    "laneTotal",
+    "startTurn"
+   ]
+  },
+  {
+   "a": "ai-core",
+   "b": "rules-state",
+   "aToB": 61,
+   "bToA": 1,
+   "examplesAtoB": [
+    "power",
+    "G",
+    "effCost",
+    "surchargeOf",
+    "publicHistory",
+    "locationRuleDisabled",
+    "canPlay",
+    "laneTotal"
+   ],
+   "examplesBtoA": [
+    "aiPlan"
+   ]
+  },
+  {
+   "a": "astro",
+   "b": "ui-render",
+   "aToB": 3,
+   "bToA": 21,
+   "examplesAtoB": [
+    "render"
+   ],
+   "examplesBtoA": [
+    "astroChoice",
+    "astroChoiceHtml",
+    "finishAstroChoice"
+   ]
+  },
+  {
+   "a": "reveal-match",
+   "b": "ui-render",
+   "aToB": 5,
+   "bToA": 1,
+   "examplesAtoB": [
+    "render"
+   ],
+   "examplesBtoA": [
+    "endTurn"
+   ]
+  },
+  {
+   "a": "reveal-match",
+   "b": "tutorial",
+   "aToB": 8,
+   "bToA": 1,
+   "examplesAtoB": [
+    "gameMode",
+    "Tutorial",
+    "tutorialState"
+   ],
+   "examplesBtoA": [
+    "finish"
+   ]
+  },
+  {
+   "a": "ui-render",
+   "b": "ui-screens",
+   "aToB": 14,
+   "bToA": 17,
+   "examplesAtoB": [
+    "renderCoach",
+    "suppressClickUntil",
+    "tutorialEvent",
+    "openOv",
+    "tutorialActive",
+    "tutorialStep",
+    "splashScreen",
+    "closeOv"
+   ],
+   "examplesBtoA": [
+    "$"
+   ]
+  },
+  {
+   "a": "tutorial",
+   "b": "ui-render",
+   "aToB": 12,
+   "bToA": 3,
+   "examplesAtoB": [
+    "$",
+    "render"
+   ],
+   "examplesBtoA": [
+    "gameMode"
+   ]
+  },
+  {
+   "a": "tutorial",
+   "b": "ui-screens",
+   "aToB": 9,
+   "bToA": 5,
+   "examplesAtoB": [
+    "openOv",
+    "tutorialActive",
+    "closeOv",
+    "splashScreen",
+    "heroPick"
+   ],
+   "examplesBtoA": [
+    "gameMode",
+    "Tutorial"
+   ]
+  }
+ ],
+ "interfaces": {
+  "data": {
+   "declarations": 17,
+   "usedOutside": 11,
+   "lines": 72,
+   "chars": 10699,
+   "exported": [
+    {
+     "name": "HAS_DOM",
+     "users": [
+      "astro",
+      "reveal-match",
+      "ui-render",
+      "ui-screens",
+      "ui-input",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "FACTIONS",
+     "users": [
+      "rules-state",
+      "ui-render",
+      "ui-screens"
+     ]
+    },
+    {
+     "name": "IMG",
+     "users": [
+      "ui-render",
+      "ui-screens"
+     ]
+    },
+    {
+     "name": "AV",
+     "users": [
+      "ui-screens"
+     ]
+    },
+    {
+     "name": "LOCIMG",
+     "users": [
+      "ui-render",
+      "ui-screens"
+     ]
+    },
+    {
+     "name": "face",
+     "users": [
+      "ui-render",
+      "ui-screens"
+     ]
+    },
+    {
+     "name": "avImg",
+     "users": [
+      "ui-render"
+     ]
+    },
+    {
+     "name": "other",
+     "users": [
+      "ai-core",
+      "ai-tactician",
+      "ai-strategist",
+      "astro",
+      "reveal-match"
+     ]
+    },
+    {
+     "name": "rndOf",
+     "users": [
+      "rules-state"
+     ]
+    },
+    {
+     "name": "CARDS",
+     "users": [
+      "rules-state",
+      "ai-tactician",
+      "ai-strategist",
+      "ui-screens",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "LOCS",
+     "users": [
+      "rules-state",
+      "ai-tactician",
+      "ai-strategist",
+      "ui-screens"
+     ]
+    }
+   ]
+  },
+  "rules-state": {
+   "declarations": 33,
+   "usedOutside": 30,
+   "lines": 69,
+   "chars": 5032,
+   "exported": [
+    {
+     "name": "G",
+     "users": [
+      "data",
+      "ai-core",
+      "ai-tactician",
+      "ai-strategist",
+      "astro",
+      "reveal-match",
+      "ui-render",
+      "ui-screens",
+      "ui-input",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "UID",
+     "users": [
+      "reveal-match"
+     ]
+    },
+    {
+     "name": "FAST",
+     "users": [
+      "reveal-match"
+     ]
+    },
+    {
+     "name": "resultViewVersion",
+     "users": [
+      "reveal-match",
+      "ui-screens"
+     ]
+    },
+    {
+     "name": "inst",
+     "users": [
+      "data"
+     ]
+    },
+    {
+     "name": "newGame",
+     "users": [
+      "reveal-match",
+      "ui-screens",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "draw",
+     "users": [
+      "data",
+      "astro"
+     ]
+    },
+    {
+     "name": "cardsIn",
+     "users": [
+      "data",
+      "ai-core",
+      "astro"
+     ]
+    },
+    {
+     "name": "allRev",
+     "users": [
+      "data",
+      "ai-tactician",
+      "astro",
+      "reveal-match"
+     ]
+    },
+    {
+     "name": "luck",
+     "users": [
+      "data"
+     ]
+    },
+    {
+     "name": "loc",
+     "users": [
+      "ai-core",
+      "ai-tactician",
+      "astro",
+      "reveal-match",
+      "ui-render"
+     ]
+    },
+    {
+     "name": "locationRuleDisabled",
+     "users": [
+      "ai-core",
+      "ai-tactician",
+      "reveal-match",
+      "ui-render"
+     ]
+    },
+    {
+     "name": "power",
+     "users": [
+      "data",
+      "ai-core",
+      "ai-tactician",
+      "astro",
+      "ui-render",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "laneTotal",
+     "users": [
+      "data",
+      "ai-core",
+      "ai-tactician",
+      "astro",
+      "reveal-match",
+      "ui-render",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "laneWinner",
+     "users": [
+      "astro",
+      "reveal-match",
+      "ui-render"
+     ]
+    },
+    {
+     "name": "buff",
+     "users": [
+      "data",
+      "astro",
+      "reveal-match"
+     ]
+    },
+    {
+     "name": "publicHistory",
+     "users": [
+      "ai-core"
+     ]
+    },
+    {
+     "name": "destroy",
+     "users": [
+      "data"
+     ]
+    },
+    {
+     "name": "now",
+     "users": [
+      "reveal-match",
+      "ui-render"
+     ]
+    },
+    {
+     "name": "logLines",
+     "users": [
+      "reveal-match",
+      "ui-render",
+      "ui-screens",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "say",
+     "users": [
+      "data",
+      "astro",
+      "reveal-match"
+     ]
+    },
+    {
+     "name": "surchargeOf",
+     "users": [
+      "ai-core",
+      "ui-render"
+     ]
+    },
+    {
+     "name": "effCost",
+     "users": [
+      "ai-core",
+      "ai-tactician",
+      "ui-render",
+      "ui-screens",
+      "ui-input",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "capOf",
+     "users": [
+      "ai-tactician",
+      "ui-render"
+     ]
+    },
+    {
+     "name": "canPlay",
+     "users": [
+      "ai-core",
+      "ai-tactician",
+      "ai-strategist",
+      "astro",
+      "ui-render",
+      "ui-input",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "moveCard",
+     "users": [
+      "astro"
+     ]
+    },
+    {
+     "name": "place",
+     "users": [
+      "ai-core",
+      "ai-tactician",
+      "ai-strategist",
+      "ui-render",
+      "ui-input",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "unplace",
+     "users": [
+      "ai-tactician",
+      "ui-render",
+      "ui-input"
+     ]
+    },
+    {
+     "name": "beginTurnState",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "startTurn",
+     "users": [
+      "reveal-match",
+      "tutorial"
+     ]
+    }
+   ]
+  },
+  "ai-core": {
+   "declarations": 11,
+   "usedOutside": 6,
+   "lines": 69,
+   "chars": 4355,
+   "exported": [
+    {
+     "name": "registerAiStrategy",
+     "users": [
+      "ai-tactician",
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "aiPlan",
+     "users": [
+      "rules-state"
+     ]
+    },
+    {
+     "name": "observe",
+     "users": [
+      "ai-tactician",
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "aiContext",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "aiChoose",
+     "users": [
+      "astro"
+     ]
+    },
+    {
+     "name": "noviceAiPlan",
+     "users": [
+      "ai-strategist"
+     ]
+    }
+   ]
+  },
+  "ai-tactician": {
+   "declarations": 16,
+   "usedOutside": 9,
+   "lines": 133,
+   "chars": 8133,
+   "exported": [
+    {
+     "name": "AI_UNKNOWN_CARD",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "tacticianFastSamples",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "tacticianState",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "tacticianClone",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "tacticianValue",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "tacticianEvaluate",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "tacticianPlans",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "tacticianPlan",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "tacticianPick",
+     "users": [
+      "ai-strategist"
+     ]
+    }
+   ]
+  },
+  "ai-strategist": {
+   "declarations": 19,
+   "usedOutside": 0,
+   "lines": 226,
+   "chars": 15095,
+   "exported": []
+  },
+  "astro": {
+   "declarations": 11,
+   "usedOutside": 5,
+   "lines": 101,
+   "chars": 5853,
+   "exported": [
+    {
+     "name": "astroChoice",
+     "users": [
+      "ui-render"
+     ]
+    },
+    {
+     "name": "finishAstroChoice",
+     "users": [
+      "ui-render"
+     ]
+    },
+    {
+     "name": "astroChoiceHtml",
+     "users": [
+      "ui-render"
+     ]
+    },
+    {
+     "name": "astroSteps",
+     "users": [
+      "reveal-match"
+     ]
+    },
+    {
+     "name": "resolveAstroCard",
+     "users": [
+      "reveal-match"
+     ]
+    }
+   ]
+  },
+  "reveal-match": {
+   "declarations": 11,
+   "usedOutside": 6,
+   "lines": 81,
+   "chars": 3964,
+   "exported": [
+    {
+     "name": "initiative",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "runAiSandbox",
+     "users": [
+      "ai-tactician",
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "sandboxReveal",
+     "users": [
+      "ai-tactician",
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "endTurn",
+     "users": [
+      "ui-render"
+     ]
+    },
+    {
+     "name": "matchOutcome",
+     "users": [
+      "ai-strategist"
+     ]
+    },
+    {
+     "name": "finish",
+     "users": [
+      "tutorial"
+     ]
+    }
+   ]
+  },
+  "ui-render": {
+   "declarations": 8,
+   "usedOutside": 4,
+   "lines": 56,
+   "chars": 4868,
+   "exported": [
+    {
+     "name": "$",
+     "users": [
+      "ui-screens",
+      "ui-input",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "cardInfo",
+     "users": [
+      "ui-input"
+     ]
+    },
+    {
+     "name": "render",
+     "users": [
+      "rules-state",
+      "astro",
+      "reveal-match",
+      "ui-input",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "findCard",
+     "users": [
+      "ui-input"
+     ]
+    }
+   ]
+  },
+  "ui-screens": {
+   "declarations": 15,
+   "usedOutside": 10,
+   "lines": 76,
+   "chars": 7059,
+   "exported": [
+    {
+     "name": "openOv",
+     "users": [
+      "reveal-match",
+      "ui-render",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "closeOv",
+     "users": [
+      "reveal-match",
+      "ui-render",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "library",
+     "users": [
+      "ui-render"
+     ]
+    },
+    {
+     "name": "tutorialActive",
+     "users": [
+      "reveal-match",
+      "ui-render",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "tutorialStep",
+     "users": [
+      "ui-render"
+     ]
+    },
+    {
+     "name": "suppressClickUntil",
+     "users": [
+      "ui-render",
+      "ui-input"
+     ]
+    },
+    {
+     "name": "tutorialEvent",
+     "users": [
+      "ui-render",
+      "ui-input"
+     ]
+    },
+    {
+     "name": "renderCoach",
+     "users": [
+      "ui-render"
+     ]
+    },
+    {
+     "name": "splashScreen",
+     "users": [
+      "reveal-match",
+      "ui-render",
+      "ui-input",
+      "tutorial"
+     ]
+    },
+    {
+     "name": "heroPick",
+     "users": [
+      "reveal-match",
+      "tutorial"
+     ]
+    }
+   ]
+  },
+  "ui-input": {
+   "declarations": 1,
+   "usedOutside": 0,
+   "lines": 38,
+   "chars": 2444,
+   "exported": []
+  },
+  "tutorial": {
+   "declarations": 4,
+   "usedOutside": 3,
+   "lines": 70,
+   "chars": 7685,
+   "exported": [
+    {
+     "name": "gameMode",
+     "users": [
+      "rules-state",
+      "ai-core",
+      "reveal-match",
+      "ui-render",
+      "ui-screens"
+     ]
+    },
+    {
+     "name": "tutorialState",
+     "users": [
+      "reveal-match"
+     ]
+    },
+    {
+     "name": "Tutorial",
+     "users": [
+      "rules-state",
+      "reveal-match",
+      "ui-screens"
+     ]
+    }
+   ]
+  }
+ },
+ "mutableGlobals": [
+  {
+   "name": "G",
+   "section": "rules-state",
+   "line": 77,
+   "writtenBy": [
+    "rules-state",
+    "ai-tactician",
+    "reveal-match",
+    "ui-render",
+    "ui-screens",
+    "tutorial"
+   ],
+   "readBy": [
+    "data",
+    "rules-state",
+    "ai-core",
+    "ai-tactician",
+    "ai-strategist",
+    "astro",
+    "reveal-match",
+    "ui-render",
+    "ui-screens",
+    "ui-input",
+    "tutorial"
+   ]
+  },
+  {
+   "name": "UID",
+   "section": "rules-state",
+   "line": 77,
+   "writtenBy": [
+    "rules-state",
+    "reveal-match"
+   ],
+   "readBy": []
+  },
+  {
+   "name": "FAST",
+   "section": "rules-state",
+   "line": 77,
+   "writtenBy": [],
+   "readBy": [
+    "reveal-match"
+   ]
+  },
+  {
+   "name": "resultViewVersion",
+   "section": "rules-state",
+   "line": 79,
+   "writtenBy": [
+    "rules-state",
+    "ui-screens"
+   ],
+   "readBy": [
+    "reveal-match"
+   ]
+  },
+  {
+   "name": "logLines",
+   "section": "rules-state",
+   "line": 116,
+   "writtenBy": [
+    "reveal-match",
+    "ui-render",
+    "ui-screens",
+    "tutorial"
+   ],
+   "readBy": [
+    "rules-state",
+    "ui-render"
+   ]
+  },
+  {
+   "name": "tacticianFastSamples",
+   "section": "ai-tactician",
+   "line": 250,
+   "writtenBy": [
+    "ai-strategist"
+   ],
+   "readBy": [
+    "ai-tactician"
+   ]
+  },
+  {
+   "name": "tacticianMove",
+   "section": "ai-tactician",
+   "line": 362,
+   "writtenBy": [
+    "ai-tactician"
+   ],
+   "readBy": [
+    "ai-tactician"
+   ]
+  },
+  {
+   "name": "astroChoice",
+   "section": "astro",
+   "line": 664,
+   "writtenBy": [
+    "astro"
+   ],
+   "readBy": [
+    "astro",
+    "ui-render"
+   ]
+  },
+  {
+   "name": "libFrom",
+   "section": "ui-screens",
+   "line": 945,
+   "writtenBy": [
+    "ui-screens"
+   ],
+   "readBy": [
+    "ui-screens"
+   ]
+  },
+  {
+   "name": "pickedHero",
+   "section": "ui-screens",
+   "line": 961,
+   "writtenBy": [
+    "ui-screens"
+   ],
+   "readBy": [
+    "ui-screens"
+   ]
+  },
+  {
+   "name": "tutorialActive",
+   "section": "ui-screens",
+   "line": 961,
+   "writtenBy": [
+    "reveal-match",
+    "ui-render",
+    "ui-screens",
+    "tutorial"
+   ],
+   "readBy": [
+    "ui-screens"
+   ]
+  },
+  {
+   "name": "tutorialStep",
+   "section": "ui-screens",
+   "line": 961,
+   "writtenBy": [
+    "ui-render",
+    "ui-screens"
+   ],
+   "readBy": [
+    "ui-screens"
+   ]
+  },
+  {
+   "name": "suppressClickUntil",
+   "section": "ui-screens",
+   "line": 961,
+   "writtenBy": [
+    "ui-input"
+   ],
+   "readBy": [
+    "ui-render"
+   ]
+  },
+  {
+   "name": "gameMode",
+   "section": "tutorial",
+   "line": 2,
+   "writtenBy": [
+    "rules-state",
+    "ui-screens",
+    "tutorial"
+   ],
+   "readBy": [
+    "rules-state",
+    "ai-core",
+    "reveal-match",
+    "ui-render",
+    "ui-screens"
+   ]
+  },
+  {
+   "name": "tutorialState",
+   "section": "tutorial",
+   "line": 26,
+   "writtenBy": [
+    "tutorial"
+   ],
+   "readBy": [
+    "reveal-match",
+    "tutorial"
+   ]
+  }
+ ],
+ "aiFunctionsReadingG": {
+  "observe": {
+   "section": "ai-core",
+   "line": 174,
+   "refs": 26
+  },
+  "aiContext": {
+   "section": "ai-core",
+   "line": 190,
+   "refs": 4
+  },
+  "noviceAiPlan": {
+   "section": "ai-core",
+   "line": 212,
+   "refs": 6
+  },
+  "tacticianLane": {
+   "section": "ai-tactician",
+   "line": 287,
+   "refs": 1
+  },
+  "tacticianValue": {
+   "section": "ai-tactician",
+   "line": 295,
+   "refs": 5
+  },
+  "tacticianEvaluate": {
+   "section": "ai-tactician",
+   "line": 316,
+   "refs": 7
+  },
+  "tacticianPlans": {
+   "section": "ai-tactician",
+   "line": 332,
+   "refs": 4
+  },
+  "strategistPlayout": {
+   "section": "ai-strategist",
+   "line": 608,
+   "refs": 5
+  },
+  "strategistPlan": {
+   "section": "ai-strategist",
+   "line": 617,
+   "refs": 4
+  }
+ },
+ "gFieldWriters": {
+  "blockedUntil": [
+   "astro"
+  ],
+  "deck": [
+   "rules-state"
+  ],
+  "discount": [
+   "data",
+   "rules-state"
+  ],
+  "info": [
+   "astro",
+   "ui-input",
+   "ui-render"
+  ],
+  "locDisabledUntil": [
+   "astro"
+  ],
+  "locRev": [
+   "rules-state"
+  ],
+  "phase": [
+   "ai-strategist",
+   "ai-tactician",
+   "reveal-match",
+   "rules-state",
+   "tutorial"
+  ],
+  "result": [
+   "reveal-match"
+  ],
+  "sel": [
+   "reveal-match",
+   "rules-state",
+   "ui-input",
+   "ui-render"
+  ],
+  "spent": [
+   "rules-state"
+  ],
+  "surcharge": [
+   "data",
+   "rules-state"
+  ],
+  "surchargeTurn": [
+   "data"
+  ],
+  "trap": [
+   "data"
+  ],
+  "turn": [
+   "rules-state"
+  ]
+ },
+ "dom": {
+  "data": {
+   "document": 1
+  },
+  "reveal-match": {
+   "document": 3
+  },
+  "ui-render": {
+   "document": 1,
+   "$()": 24
+  },
+  "ui-screens": {
+   "$()": 17,
+   "document": 5,
+   "localStorage": 2
+  },
+  "ui-input": {
+   "document": 5,
+   "$()": 3,
+   "window": 4
+  },
+  "tutorial": {
+   "localStorage": 2,
+   "$()": 11,
+   "document": 4
+  }
+ },
+ "timers": {
+  "rules-state": {
+   "Date": 1
+  },
+  "reveal-match": {
+   "setTimeout": 2
+  },
+  "ui-render": {
+   "Date": 2
+  },
+  "ui-input": {
+   "Date": 2
+  }
+ },
+ "rng": {
+  "data": {
+   "Math.random": 1
+  },
+  "rules-state": {
+   "Math.random": 2
+  },
+  "ai-core": {
+   "Math.random": 1
+  },
+  "ai-strategist": {
+   "Math.random": 6
+  },
+  "reveal-match": {
+   "Math.random": 4
+  }
+ },
+ "largestFunctions": [
+  {
+   "name": "render",
+   "file": "game.js",
+   "line": 881,
+   "section": "ui-render",
+   "lines": 33,
+   "chars": 2936,
+   "fanIn": 8,
+   "fanOut": 23
+  },
+  {
+   "name": "strategistPlan",
+   "file": "game.js",
+   "line": 617,
+   "section": "ai-strategist",
+   "lines": 44,
+   "chars": 2839,
+   "fanIn": 0,
+   "fanOut": 17
+  },
+  {
+   "name": "strategistHistory",
+   "file": "game.js",
+   "line": 460,
+   "section": "ai-strategist",
+   "lines": 37,
+   "chars": 2652,
+   "fanIn": 1,
+   "fanOut": 2
+  },
+  {
+   "name": "astroSteps",
+   "file": "game.js",
+   "line": 715,
+   "section": "astro",
+   "lines": 47,
+   "chars": 2527,
+   "fanIn": 2,
+   "fanOut": 16
+  },
+  {
+   "name": "installGestures",
+   "file": "game.js",
+   "line": 1018,
+   "section": "ui-input",
+   "lines": 38,
+   "chars": 2444,
+   "fanIn": 0,
+   "fanOut": 11
+  },
+  {
+   "name": "renderCoach",
+   "file": "game.js",
+   "line": 970,
+   "section": "ui-screens",
+   "lines": 19,
+   "chars": 2081,
+   "fanIn": 2,
+   "fanOut": 9
+  },
+  {
+   "name": "strategistFoeSample",
+   "file": "game.js",
+   "line": 555,
+   "section": "ai-strategist",
+   "lines": 29,
+   "chars": 1816,
+   "fanIn": 1,
+   "fanOut": 4
+  },
+  {
+   "name": "tacticianPick",
+   "file": "game.js",
+   "line": 363,
+   "section": "ai-tactician",
+   "lines": 22,
+   "chars": 1693,
+   "fanIn": 1,
+   "fanOut": 4
+  },
+  {
+   "name": "tacticianState",
+   "file": "game.js",
+   "line": 251,
+   "section": "ai-tactician",
+   "lines": 19,
+   "chars": 1626,
+   "fanIn": 2,
+   "fanOut": 5
+  },
+  {
+   "name": "strategistOwnDeck",
+   "file": "game.js",
+   "line": 517,
+   "section": "ai-strategist",
+   "lines": 24,
+   "chars": 1531,
+   "fanIn": 1,
+   "fanOut": 5
+  },
+  {
+   "name": "strategistWorld",
+   "file": "game.js",
+   "line": 587,
+   "section": "ai-strategist",
+   "lines": 20,
+   "chars": 1507,
+   "fanIn": 1,
+   "fanOut": 8
+  },
+  {
+   "name": "tacticianValue",
+   "file": "game.js",
+   "line": 295,
+   "section": "ai-tactician",
+   "lines": 21,
+   "chars": 1450,
+   "fanIn": 2,
+   "fanOut": 11
+  },
+  {
+   "name": "splashScreen",
+   "file": "game.js",
+   "line": 990,
+   "section": "ui-screens",
+   "lines": 16,
+   "chars": 1410,
+   "fanIn": 3,
+   "fanOut": 5
+  },
+  {
+   "name": "observe",
+   "file": "game.js",
+   "line": 174,
+   "section": "ai-core",
+   "lines": 15,
+   "chars": 1401,
+   "fanIn": 3,
+   "fanOut": 10
+  },
+  {
+   "name": "library",
+   "file": "game.js",
+   "line": 946,
+   "section": "ui-screens",
+   "lines": 14,
+   "chars": 1390,
+   "fanIn": 1,
+   "fanOut": 11
+  }
+ ],
+ "mostUsedFunctions": [
+  {
+   "name": "other",
+   "file": "game.js",
+   "line": 14,
+   "section": "data",
+   "lines": 1,
+   "chars": 24,
+   "fanIn": 14,
+   "fanOut": 0
+  },
+  {
+   "name": "loc",
+   "file": "game.js",
+   "line": 98,
+   "section": "rules-state",
+   "lines": 1,
+   "chars": 51,
+   "fanIn": 13,
+   "fanOut": 1
+  },
+  {
+   "name": "laneTotal",
+   "file": "game.js",
+   "line": 107,
+   "section": "rules-state",
+   "lines": 1,
+   "chars": 73,
+   "fanIn": 12,
+   "fanOut": 2
+  },
+  {
+   "name": "locationRuleDisabled",
+   "file": "game.js",
+   "line": 99,
+   "section": "rules-state",
+   "lines": 1,
+   "chars": 82,
+   "fanIn": 11,
+   "fanOut": 1
+  },
+  {
+   "name": "power",
+   "file": "game.js",
+   "line": 100,
+   "section": "rules-state",
+   "lines": 7,
+   "chars": 243,
+   "fanIn": 11,
+   "fanOut": 3
+  },
+  {
+   "name": "canPlay",
+   "file": "game.js",
+   "line": 123,
+   "section": "rules-state",
+   "lines": 2,
+   "chars": 236,
+   "fanIn": 11,
+   "fanOut": 4
+  },
+  {
+   "name": "effCost",
+   "file": "game.js",
+   "line": 121,
+   "section": "rules-state",
+   "lines": 1,
+   "chars": 88,
+   "fanIn": 9,
+   "fanOut": 2
+  },
+  {
+   "name": "$",
+   "file": "game.js",
+   "line": 859,
+   "section": "ui-render",
+   "lines": 1,
+   "chars": 46,
+   "fanIn": 9,
+   "fanOut": 1
+  },
+  {
+   "name": "cardsIn",
+   "file": "game.js",
+   "line": 94,
+   "section": "rules-state",
+   "lines": 1,
+   "chars": 76,
+   "fanIn": 8,
+   "fanOut": 1
+  },
+  {
+   "name": "render",
+   "file": "game.js",
+   "line": 881,
+   "section": "ui-render",
+   "lines": 33,
+   "chars": 2936,
+   "fanIn": 8,
+   "fanOut": 23
+  },
+  {
+   "name": "place",
+   "file": "game.js",
+   "line": 126,
+   "section": "rules-state",
+   "lines": 7,
+   "chars": 443,
+   "fanIn": 7,
+   "fanOut": 5
+  },
+  {
+   "name": "allRev",
+   "file": "game.js",
+   "line": 95,
+   "section": "rules-state",
+   "lines": 1,
+   "chars": 120,
+   "fanIn": 6,
+   "fanOut": 1
+  },
+  {
+   "name": "say",
+   "file": "game.js",
+   "line": 117,
+   "section": "rules-state",
+   "lines": 1,
+   "chars": 72,
+   "fanIn": 6,
+   "fanOut": 1
+  },
+  {
+   "name": "draw",
+   "file": "game.js",
+   "line": 93,
+   "section": "rules-state",
+   "lines": 1,
+   "chars": 99,
+   "fanIn": 5,
+   "fanOut": 1
+  },
+  {
+   "name": "sShuffle",
+   "file": "game.js",
+   "line": 513,
+   "section": "ai-strategist",
+   "lines": 1,
+   "chars": 118,
+   "fanIn": 5,
+   "fanOut": 0
+  }
+ ],
+ "crossSectionCalls": {
+  "data -> rules-state": [
+   "data:maxBy -> rules-state:power",
+   "data:minBy -> rules-state:power",
+   "data:others -> rules-state:cardsIn",
+   "data:foes -> rules-state:cardsIn",
+   "data:CARDS -> rules-state:buff",
+   "data:CARDS -> rules-state:allRev",
+   "data:CARDS -> rules-state:draw",
+   "data:CARDS -> rules-state:say",
+   "data:CARDS -> rules-state:laneTotal",
+   "data:CARDS -> rules-state:cardsIn",
+   "data:CARDS -> rules-state:inst",
+   "data:CARDS -> rules-state:destroy",
+   "data:LOCS -> rules-state:buff",
+   "data:LOCS -> rules-state:draw",
+   "data:LOCS -> rules-state:luck",
+   "data:LOCS -> rules-state:cardsIn"
+  ],
+  "rules-state -> data": [
+   "rules-state:newGame -> data:rndOf"
+  ],
+  "rules-state -> ai-core": [
+   "rules-state:startTurn -> ai-core:aiPlan"
+  ],
+  "rules-state -> ui-render": [
+   "rules-state:startTurn -> ui-render:render"
+  ],
+  "ai-core -> data": [
+   "ai-core:observe -> data:other",
+   "ai-core:noviceAiPlan -> data:other"
+  ],
+  "ai-core -> rules-state": [
+   "ai-core:observe -> rules-state:power",
+   "ai-core:observe -> rules-state:effCost",
+   "ai-core:observe -> rules-state:surchargeOf",
+   "ai-core:observe -> rules-state:publicHistory",
+   "ai-core:observe -> rules-state:locationRuleDisabled",
+   "ai-core:observe -> rules-state:canPlay",
+   "ai-core:observe -> rules-state:laneTotal",
+   "ai-core:aiContext -> rules-state:canPlay",
+   "ai-core:aiContext -> rules-state:effCost",
+   "ai-core:aiContext -> rules-state:place",
+   "ai-core:aiChoose -> rules-state:power",
+   "ai-core:noviceAiPlan -> rules-state:effCost",
+   "ai-core:noviceAiPlan -> rules-state:canPlay",
+   "ai-core:noviceAiPlan -> rules-state:laneTotal",
+   "ai-core:noviceAiPlan -> rules-state:loc",
+   "ai-core:noviceAiPlan -> rules-state:locationRuleDisabled",
+   "ai-core:noviceAiPlan -> rules-state:cardsIn",
+   "ai-core:noviceAiPlan -> rules-state:place"
+  ],
+  "ai-tactician -> data": [
+   "ai-tactician:tacticianState -> data:other",
+   "ai-tactician:tacticianLane -> data:other",
+   "ai-tactician:tacticianValue -> data:other",
+   "ai-tactician:tacticianEvaluate -> data:other"
+  ],
+  "ai-tactician -> rules-state": [
+   "ai-tactician:tacticianLane -> rules-state:laneTotal",
+   "ai-tactician:tacticianLane -> rules-state:loc",
+   "ai-tactician:tacticianLane -> rules-state:locationRuleDisabled",
+   "ai-tactician:tacticianValue -> rules-state:allRev",
+   "ai-tactician:tacticianValue -> rules-state:power",
+   "ai-tactician:tacticianValue -> rules-state:loc",
+   "ai-tactician:tacticianValue -> rules-state:locationRuleDisabled",
+   "ai-tactician:tacticianValue -> rules-state:capOf",
+   "ai-tactician:tacticianEvaluate -> rules-state:place",
+   "ai-tactician:tacticianEvaluate -> rules-state:laneTotal",
+   "ai-tactician:tacticianPlans -> rules-state:effCost",
+   "ai-tactician:tacticianPlans -> rules-state:canPlay",
+   "ai-tactician:tacticianPlans -> rules-state:place",
+   "ai-tactician:tacticianPlans -> rules-state:unplace",
+   "ai-tactician:tacticianPick -> rules-state:power"
+  ],
+  "ai-tactician -> reveal-match": [
+   "ai-tactician:tacticianEvaluate -> reveal-match:runAiSandbox",
+   "ai-tactician:tacticianEvaluate -> reveal-match:sandboxReveal",
+   "ai-tactician:tacticianPlans -> reveal-match:runAiSandbox"
+  ],
+  "ai-tactician -> ai-core": [
+   "ai-tactician:tacticianPick -> ai-core:observe"
+  ],
+  "ai-strategist -> data": [
+   "ai-strategist:strategistWorld -> data:other",
+   "ai-strategist:strategistPlan -> data:other"
+  ],
+  "ai-strategist -> reveal-match": [
+   "ai-strategist:strategistPlayout -> reveal-match:sandboxReveal",
+   "ai-strategist:strategistPlayout -> reveal-match:initiative",
+   "ai-strategist:strategistPlayout -> reveal-match:matchOutcome",
+   "ai-strategist:strategistPlan -> reveal-match:runAiSandbox"
+  ],
+  "ai-strategist -> ai-tactician": [
+   "ai-strategist:strategistPlayout -> ai-tactician:tacticianValue",
+   "ai-strategist:strategistPlan -> ai-tactician:tacticianState",
+   "ai-strategist:strategistPlan -> ai-tactician:tacticianPlans",
+   "ai-strategist:strategistPlan -> ai-tactician:tacticianEvaluate",
+   "ai-strategist:strategistPlan -> ai-tactician:tacticianClone",
+   "ai-strategist:strategistPlan -> ai-tactician:tacticianPlan"
+  ],
+  "ai-strategist -> ai-core": [
+   "ai-strategist:strategistPlayout -> ai-core:observe",
+   "ai-strategist:strategistPlayout -> ai-core:noviceAiPlan",
+   "ai-strategist:strategistPlan -> ai-core:aiContext"
+  ],
+  "ai-strategist -> rules-state": [
+   "ai-strategist:strategistPlayout -> rules-state:beginTurnState",
+   "ai-strategist:strategistPlan -> rules-state:place",
+   "ai-strategist:strategistPlan -> rules-state:canPlay"
+  ],
+  "astro -> ui-render": [
+   "astro:finishAstroChoice -> ui-render:render",
+   "astro:chooseAstroCard -> ui-render:render",
+   "astro:chooseAstroLane -> ui-render:render"
+  ],
+  "astro -> ai-core": [
+   "astro:chooseAstroCard -> ai-core:aiChoose",
+   "astro:chooseAstroLane -> ai-core:aiChoose"
+  ],
+  "astro -> data": [
+   "astro:astroLaneScore -> data:other",
+   "astro:astroSteps -> data:other"
+  ],
+  "astro -> rules-state": [
+   "astro:astroLaneScore -> rules-state:laneTotal",
+   "astro:astroLaneScore -> rules-state:loc",
+   "astro:astroLaneScore -> rules-state:cardsIn",
+   "astro:astroLaneScore -> rules-state:laneWinner",
+   "astro:openMoveLanes -> rules-state:canPlay",
+   "astro:astroSteps -> rules-state:canPlay",
+   "astro:astroSteps -> rules-state:say",
+   "astro:astroSteps -> rules-state:loc",
+   "astro:astroSteps -> rules-state:cardsIn",
+   "astro:astroSteps -> rules-state:laneTotal",
+   "astro:astroSteps -> rules-state:laneWinner",
+   "astro:astroSteps -> rules-state:buff",
+   "astro:astroSteps -> rules-state:power",
+   "astro:astroSteps -> rules-state:draw",
+   "astro:astroSteps -> rules-state:allRev",
+   "astro:astroSteps -> rules-state:moveCard"
+  ],
+  "reveal-match -> rules-state": [
+   "reveal-match:initiative -> rules-state:laneTotal",
+   "reveal-match:revealCard -> rules-state:now",
+   "reveal-match:revealCard -> rules-state:say",
+   "reveal-match:revealCard -> rules-state:buff",
+   "reveal-match:revealCard -> rules-state:loc",
+   "reveal-match:revealCard -> rules-state:locationRuleDisabled",
+   "reveal-match:endOfTurnEffects -> rules-state:allRev",
+   "reveal-match:endOfTurnEffects -> rules-state:loc",
+   "reveal-match:endOfTurnEffects -> rules-state:locationRuleDisabled",
+   "reveal-match:endTurn -> rules-state:say",
+   "reveal-match:endTurn -> rules-state:startTurn",
+   "reveal-match:matchOutcome -> rules-state:laneWinner",
+   "reveal-match:matchOutcome -> rules-state:laneTotal",
+   "reveal-match:finish -> rules-state:newGame"
+  ],
+  "reveal-match -> data": [
+   "reveal-match:revealOrder -> data:other",
+   "reveal-match:revealCard -> data:other"
+  ],
+  "reveal-match -> astro": [
+   "reveal-match:sandboxReveal -> astro:astroSteps",
+   "reveal-match:endTurn -> astro:resolveAstroCard"
+  ],
+  "reveal-match -> ui-render": [
+   "reveal-match:endTurn -> ui-render:render",
+   "reveal-match:finish -> ui-render:render"
+  ],
+  "reveal-match -> ui-screens": [
+   "reveal-match:finish -> ui-screens:openOv",
+   "reveal-match:finish -> ui-screens:closeOv",
+   "reveal-match:finish -> ui-screens:heroPick",
+   "reveal-match:finish -> ui-screens:splashScreen"
+  ],
+  "ui-render -> rules-state": [
+   "ui-render:cardInfo -> rules-state:power",
+   "ui-render:miniCard -> rules-state:power",
+   "ui-render:miniCard -> rules-state:now",
+   "ui-render:slots -> rules-state:capOf",
+   "ui-render:render -> rules-state:loc",
+   "ui-render:render -> rules-state:laneWinner",
+   "ui-render:render -> rules-state:locationRuleDisabled",
+   "ui-render:render -> rules-state:canPlay",
+   "ui-render:render -> rules-state:effCost",
+   "ui-render:render -> rules-state:laneTotal",
+   "ui-render:render -> rules-state:surchargeOf"
+  ],
+  "ui-render -> data": [
+   "ui-render:miniCard -> data:face",
+   "ui-render:render -> data:avImg",
+   "ui-render:render -> data:face"
+  ],
+  "ui-render -> astro": [
+   "ui-render:render -> astro:astroChoiceHtml"
+  ],
+  "ui-render -> ui-screens": [
+   "ui-render:render -> ui-screens:renderCoach"
+  ],
+  "ui-screens -> ui-render": [
+   "ui-screens:openOv -> ui-render:$",
+   "ui-screens:closeOv -> ui-render:$",
+   "ui-screens:library -> ui-render:$",
+   "ui-screens:renderCoach -> ui-render:$",
+   "ui-screens:splashScreen -> ui-render:$",
+   "ui-screens:heroPick -> ui-render:$"
+  ],
+  "ui-screens -> data": [
+   "ui-screens:library -> data:face"
+  ],
+  "ui-screens -> rules-state": [
+   "ui-screens:renderCoach -> rules-state:effCost",
+   "ui-screens:startMatch -> rules-state:newGame"
+  ],
+  "ui-input -> ui-render": [
+   "ui-input:installGestures -> ui-render:$",
+   "ui-input:installGestures -> ui-render:findCard",
+   "ui-input:installGestures -> ui-render:cardInfo",
+   "ui-input:installGestures -> ui-render:render"
+  ],
+  "ui-input -> rules-state": [
+   "ui-input:installGestures -> rules-state:canPlay",
+   "ui-input:installGestures -> rules-state:effCost",
+   "ui-input:installGestures -> rules-state:place",
+   "ui-input:installGestures -> rules-state:unplace"
+  ],
+  "ui-input -> ui-screens": [
+   "ui-input:installGestures -> ui-screens:tutorialEvent"
+  ],
+  "tutorial -> ui-screens": [
+   "tutorial:Tutorial -> ui-screens:openOv",
+   "tutorial:Tutorial -> ui-screens:closeOv",
+   "tutorial:Tutorial -> ui-screens:splashScreen",
+   "tutorial:Tutorial -> ui-screens:heroPick"
+  ],
+  "tutorial -> ui-render": [
+   "tutorial:Tutorial -> ui-render:$",
+   "tutorial:Tutorial -> ui-render:render"
+  ],
+  "tutorial -> rules-state": [
+   "tutorial:Tutorial -> rules-state:newGame",
+   "tutorial:Tutorial -> rules-state:canPlay",
+   "tutorial:Tutorial -> rules-state:effCost",
+   "tutorial:Tutorial -> rules-state:place",
+   "tutorial:Tutorial -> rules-state:laneTotal",
+   "tutorial:Tutorial -> rules-state:startTurn",
+   "tutorial:Tutorial -> rules-state:power"
+  ],
+  "tutorial -> reveal-match": [
+   "tutorial:Tutorial -> reveal-match:finish"
+  ]
+ }
+}
