@@ -17,6 +17,14 @@
 //    (setup, turns 1..6) the wrapper count must equal the confirmed calls and the schedule (6 per game, side and
 //    turn exact). Calls from anywhere else, extra or missing calls, object return values, unexpected pauses,
 //    tampered builtins, additional frames, pages or workers, navigation and page exceptions fail the run.
+//  - Measuring the Novice (the opponent's own strategy): both seats then call the same plan function, so the
+//    wrapper takes every call and attributes it by the trusted schedule of the segment, in the engine's fixed
+//    order (setup: e; turn i: p, then e unless turn 6). Only the measured seat's calls are timed; the opponent's
+//    are counted. Each seat's count must match the schedule per segment and in total (6 + 6 per game), every call
+//    must be confirmed by the breakpoint, and the argument of EVERY call must be the primitive string 'p' or 'e'
+//    equal to its scheduled side (typeof checked first, so no target code runs; an object, a String wrapper, an
+//    array or anything coercible is refused even with the right number of calls). For other strategies the
+//    opponent never calls the wrapped function and the schedule is unchanged.
 //  - The breakpoint adds a pause to each timed decision; it is calibrated per rate and reported (the reported
 //    times include it, so they never understate).
 //  - --isolation=strict (default; used by the workflow) additionally requires a system barrier: no network
@@ -32,7 +40,7 @@
 'use strict';
 const fs=require('fs'),path=require('path'),os=require('os'),net=require('net'),crypto=require('crypto'),{spawn,execFileSync}=require('child_process');
 
-const TOOL_VERSION='inspector-browser-2';
+const TOOL_VERSION='inspector-browser-3';
 const args=Object.fromEntries(process.argv.slice(2).map(a=>{const m=/^--([a-z-]+)(?:=(.*))?$/s.exec(a);if(!m)throw new Error(`bad argument: ${a}`);return [m[1],m[2]===undefined?true:m[2]];}));
 const P={
  target:args.target,expectSha:args['expect-sha'],chrome:args.chrome||'/usr/bin/google-chrome',strategy:args.strategy||'strategist',
@@ -40,6 +48,7 @@ const P={
  timeoutMin:Number(args['timeout-min']||60),isolation:args.isolation||'strict',allowNoSandbox:args['allow-no-sandbox']===true,
 };
 const OPPONENT='novice',TURNS=6,HEROES=['eng','ast','kee'],CALIBRATION=30;
+const SAME=P.strategy===OPPONENT; // both seats use the measured plan function
 const ENV_ALLOWED=new Set(['PATH','HOME','TMPDIR','LANG','LC_ALL','TZ','INSPECTOR_IMAGE_OS','INSPECTOR_IMAGE_VERSION']);
 const sha256=b=>crypto.createHash('sha256').update(b).digest('hex');
 const started=new Date().toISOString();
@@ -148,18 +157,25 @@ const BOOTSTRAP=`(function(){
   [Function.prototype,'bind'],[Object,'freeze'],[Object,'assign'],[Object,'getOwnPropertyDescriptor'],[globalThis,'Float64Array'],[globalThis,'Int32Array'],
   [globalThis,'setTimeout'],[globalThis,'setInterval'],[globalThis,'queueMicrotask'],[globalThis,'Promise'],[Promise.prototype,'then'],[globalThis,'Reflect'],[globalThis,'Math'],[Math,'imul']];
  const original=watched.map(([o,k])=>{const d=gopd(o,k);return d&&('value' in d?d.value:d.get);});
- let ev=null,orig=null,wrapper=null,cap=0,calls=0,seg=0,curSide=0,curTurn=0,curGame=-1,objectReturn=0;
+ let ev=null,orig=null,wrapper=null,same=false,cap=0,calls=0,seg=0,segM=0,segO=0,segX=0,roles='',oppCalls=0,sideMismatch=0,curSide=0,curTurn=0,curGame=-1,objectReturn=0;
  let dur=null,side=null,turn=null,game=null;
  function calibrationTarget(){return undefined;}
  let x=1;const rnd=()=>((x=(imul(x,1664525)+1013904223)>>>0)/4294967296);
  const controller={
   attach(fn){ev=fn(undefined);if(typeof ev!=='function')throw new Error('target did not provide its evaluator');return true;},
-  install(strategy,n){
+  install(strategy,n,sharedPlan){
    const reg=ev('AI_STRATEGIES');const entry=reg&&reg[strategy];
    if(!entry||typeof entry.plan!=='function')throw new Error('strategy not registered in target: '+strategy);
-   orig=entry.plan;cap=n;dur=new F64(n);side=new I32(n);turn=new I32(n);game=new I32(n);
+   orig=entry.plan;cap=n;same=sharedPlan===true;dur=new F64(n);side=new I32(n);turn=new I32(n);game=new I32(n);
    wrapper=function(ctx){
-    const k=calls;calls=k+1;seg=seg+1;
+    // Role of this call from the trusted schedule of the segment: 'm' measured seat, 'o' opponent, else extra.
+    const pos=seg;seg=pos+1;const role=pos<roles.length?roles[pos]:'x';
+    const want=role==='m'?(curSide?'e':'p'):(curSide?'p':'e');
+    // Shared plan (Novice measured): the side must be proven by a primitive string equal to the schedule.
+    if(same?(typeof ctx!=='string'||role==='x'||ctx!==want):(typeof ctx==='string'&&(role==='x'||ctx!==want)))sideMismatch=sideMismatch+1;
+    if(role!=='m'){if(role==='o'){segO=segO+1;oppCalls=oppCalls+1;}else segX=segX+1;const r=apply(orig,this,[ctx]);
+     if(r!==null&&(typeof r==='object'||typeof r==='function'))objectReturn=objectReturn+1;return r;}
+    const k=calls;calls=k+1;segM=segM+1;
     const t0=now();const r=apply(orig,this,[ctx]);const t1=now();
     if(k<cap){dur[k]=t1-t0;side[k]=curSide;turn[k]=curTurn;game[k]=curGame;}
     if(r!==null&&(typeof r==='object'||typeof r==='function'))objectReturn=objectReturn+1;
@@ -171,17 +187,17 @@ const BOOTSTRAP=`(function(){
   original(){return orig;},wrapperFn(){return wrapper;},calibrationFn(){return calibrationTarget;},
   calibrate(n){const out=[];for(let i=0;i<n;i++){const t0=now();apply(calibrationTarget,undefined,[]);out[i]=now()-t0;}return out;},
   // One segment of game g: step -1 = setup (strategies, seed, newGame); step i = turn i+1 (aiPlan('p'), endTurn()).
-  async segment(g,step,seat,strategy,opponent,hero,expectSide,expectTurn){
-   seg=0;curGame=g;curSide=expectSide;curTurn=expectTurn;
+  async segment(g,step,seat,strategy,opponent,hero,expectSide,expectTurn,expectRoles){
+   seg=0;segM=0;segO=0;segX=0;roles=String(expectRoles);curGame=g;curSide=expectSide;curTurn=expectTurn;
    const t0=now();
    if(step<0){x=g+11;M.random=rnd;
     ev("setAiStrategy('p','"+opponent+"');setAiStrategy('e','"+opponent+"');setAiStrategy('"+seat+"','"+strategy+"');newGame('"+hero+"')");}
    else await ev("(async()=>{aiPlan('p');await endTurn()})()");
-   return {calls:seg,ms:now()-t0};
+   return {calls:seg,measured:segM,opponent:segO,extra:segX,ms:now()-t0};
   },
   state(){
    const tampered=[];for(let i=0;i<watched.length;i++){const [o,k]=watched[i];const d=gopd(o,k);const v=d&&('value' in d?d.value:d.get);if(v!==original[i])tampered[tampered.length]=k;}
-   return {calls,cap,objectReturn,tampered};
+   return {calls,cap,oppCalls,sideMismatch,objectReturn,tampered};
   },
   dump(){const n=calls<cap?calls:cap,o=[];for(let i=0;i<n;i++)o[i]=[game[i],side[i],turn[i],dur[i]];return o;},
  };
@@ -231,7 +247,7 @@ async function measureRate(cdp,rate,target,violations){
  if(tgt.exceptionDetails)throw new Error(`target does not compile: ${tgt.exceptionDetails.text}`);
  const fn=(await s('Runtime.runScript',{scriptId:tgt.scriptId})).result;
  await call(ctl.objectId,'function(f){return this.attach(f)}',[fn]);
- const strat=(await call(ctl.objectId,'function(s,n){return this.install(s,n)}',[P.strategy,P.games*TURNS])).value;
+ const strat=(await call(ctl.objectId,'function(s,n,sp){return this.install(s,n,sp)}',[P.strategy,P.games*TURNS,SAME])).value;
  const loc=async getter=>{const o=await call(ctl.objectId,getter,[],false);const pr=await s('Runtime.getProperties',{objectId:o.objectId,ownProperties:true});
   const l=(pr.internalProperties||[]).find(p=>p.name==='[[FunctionLocation]]');if(!l)throw new Error('function location unavailable');return l.value.value;};
  const origLoc=await loc('function(){return this.original()}').catch(()=>{throw new Error('the strategy plan function is not defined by the target code');});
@@ -249,12 +265,16 @@ async function measureRate(cdp,rate,target,violations){
   for(let step=-1;step<TURNS;step++){
    // Schedule: seat p plans in aiPlan('p') of turns 1..6; seat e plans at newGame (turn 1) and after turns 1..5.
    const expect=seat==='p'?(step>=0?{n:1,turn:step+1}:{n:0,turn:0}):(step<TURNS-1?{n:1,turn:step+2}:{n:0,turn:0});
+   // Calls of the plan function in engine order: setup — e (turn 1); turn step+1 — p, then e (turn step+2) unless last.
+   const order=step<0?['e']:['p',...(step<TURNS-1?['e']:[])];
+   const roles=order.map(o=>o===seat?'m':'o').filter(r=>r==='m'||SAME).join('');expect.o=SAME?roles.split('o').length-1:0;
    pausesSeg=0;const h0=process.hrtime.bigint();
-   const r=(await call(ctl.objectId,'function(g,st,se,s,o,h,es,et){return this.segment(g,st,se,s,o,h,es,et)}',[g,step,seat,P.strategy,OPPONENT,hero,seat==='p'?0:1,expect.turn])).value;
+   const r=(await call(ctl.objectId,'function(g,st,se,s,o,h,es,et,er){return this.segment(g,st,se,s,o,h,es,et,er)}',[g,step,seat,P.strategy,OPPONENT,hero,seat==='p'?0:1,expect.turn,roles])).value;
    const wall=Number(process.hrtime.bigint()-h0)/1e6;
-   if(r.calls!==expect.n||pausesSeg!==r.calls)violate({kind:'decision count mismatch',game:g,step,expected:expect.n,wrapperCalls:r.calls,confirmedCalls:pausesSeg});
+   if(r.measured!==expect.n||r.opponent!==expect.o||r.extra||r.calls!==expect.n+expect.o||pausesSeg!==r.calls)
+    violate({kind:'decision count mismatch',game:g,step,expected:expect.n,expectedOpponent:expect.o,measuredCalls:r.measured,opponentCalls:r.opponent,extraCalls:r.extra,wrapperCalls:r.calls,confirmedCalls:pausesSeg});
    if(r.ms>wall+1)violate({kind:'timing inconsistent with the external clock',game:g,step,pageMs:r.ms,wallMs:wall});
-   segments.push([g,step,r.calls,pausesSeg,Math.round(r.ms*1000)/1000,Math.round(wall*1000)/1000]);
+   segments.push([g,step,r.calls,pausesSeg,Math.round(r.ms*1000)/1000,Math.round(wall*1000)/1000,r.measured,r.opponent]);
    if(violations.length)return null;
   }
  }
@@ -262,6 +282,8 @@ async function measureRate(cdp,rate,target,violations){
  if(st.tampered.length)violate({kind:'builtins tampered by the target',names:st.tampered});
  if(st.objectReturn)violate({kind:'plan returned an object (asynchronous or deferred work)',count:st.objectReturn});
  if(st.calls!==P.games*TURNS)violate({kind:'decision count mismatch (total)',calls:st.calls,expected:P.games*TURNS});
+ if(st.oppCalls!==(SAME?P.games*TURNS:0))violate({kind:'decision count mismatch (opponent total)',calls:st.oppCalls,expected:SAME?P.games*TURNS:0});
+ if(st.sideMismatch)violate({kind:'side of a call differs from the schedule',count:st.sideMismatch});
  const calls=(await call(ctl.objectId,'function(){return this.dump()}')).value;
  await cdp.send('Target.closeTarget',{targetId});
  return {calls,calib,segments,strat,wallSeconds:Math.round((Date.now()-t0)/100)/10};
@@ -298,7 +320,7 @@ async function main(){
   const adj=a=>a.map(v=>Math.max(0,v-m.calib.slice().sort((x,y)=>x-y)[Math.floor(m.calib.length/2)]));
   // Whole segments that contain a decision (engine + decision): an upper bound that also covers any work a
   // target might move out of plan into the engine.
-  const segMs=m.segments.filter(x=>x[2]===1).map(x=>x[4]);
+  const segMs=m.segments.filter(x=>x[6]===1).map(x=>x[4]);
   results[rate]={all:stats(ms),p:stats(byS(0)),e:stats(byS(1)),decisionSegments:stats(segMs),withoutBreakpointEstimate:{all:stats(adj(ms)),p:stats(adj(byS(0))),e:stats(adj(byS(1)))},wallSeconds:m.wallSeconds};
   raw[rate]=m.calls.map(c=>[c[0],c[1]?'e':'p',c[2],Math.round(c[3]*1000)/1000]);
   segments[rate]=m.segments;strat=m.strat;
@@ -314,19 +336,22 @@ async function main(){
    runner:{imageOS:env('INSPECTOR_IMAGE_OS'),imageVersion:env('INSPECTOR_IMAGE_VERSION')}},
   params:{strategy:P.strategy,opponent:OPPONENT,games:P.games,turns:TURNS,rates:P.rates,seeds:'game g: LCG seed g+11',seats:'alternating p,e',heroes:HEROES,percentile:'nearest rank (floor)'},
   verification:{method:'trusted bootstrap closure clock and log; CDP breakpoint on the original plan function with the trusted wrapper as caller; per-segment schedule; builtin integrity; no extra frames, pages or workers',
-   decisions:P.games*TURNS,segmentsPerRate:P.games*(TURNS+1),breakpointOverheadMs:calibration},
+   decisions:P.games*TURNS,opponentDecisionsConfirmed:SAME?P.games*TURNS:0,
+   attribution:SAME?'both seats call the measured function: each call attributed by the trusted per-segment schedule in engine order; its argument must be the primitive string p/e of that side (non-strings refused); opponent calls counted, not timed':'only the measured seat calls the measured function',
+   segmentsPerRate:P.games*(TURNS+1),breakpointOverheadMs:calibration},
   results,started,finished:new Date().toISOString(),
  };
  fs.mkdirSync(P.out,{recursive:true});
  fs.writeFileSync(path.join(P.out,'measurement.json'),JSON.stringify(meta,null,1));
- fs.writeFileSync(path.join(P.out,'raw-timings.json'),JSON.stringify({columns:['game','side','turn','ms'],byRate:raw,segments:{columns:['game','step','wrapperCalls','confirmedCalls','pageMs','wallMs'],byRate:segments}}));
+ fs.writeFileSync(path.join(P.out,'raw-timings.json'),JSON.stringify({columns:['game','side','turn','ms'],byRate:raw,segments:{columns:['game','step','wrapperCalls','confirmedCalls','pageMs','wallMs','measuredCalls','opponentCalls'],byRate:segments}}));
  const row=(rate,k,x)=>`| ${rate}× | ${k} | ${x.n} | ${x.p50} | ${x.p95} | ${x.p99} | ${x.max} | ${x.over1s} |`;
  const md=[`## Inspector browser measurement — ${P.strategy} vs ${OPPONENT}`,'',
   `- Target SHA: \`${target.sha}\` (verified); game.js SHA-256 \`${target.files['game.js']}\`; strategy ${strat.id} ${strat.version}`,
   `- Tool: ${TOOL_VERSION}, commit \`${tool.commit}\`, script SHA-256 \`${tool.scriptSha256}\`, Node ${process.version}`,
   `- Browser: ${version.product}; isolation ${P.isolation}${P.isolation==='strict'?' (no network, non-root, sandboxed renderers, clean environment, read-only files)':''}`,
   `- Environment: ${meta.environment.os}, ${meta.environment.cpus}× ${meta.environment.cpuModel}, image ${env('INSPECTOR_IMAGE_OS')||'-'} ${env('INSPECTOR_IMAGE_VERSION')||''}`,
-  `- Games: ${P.games} (seats alternate), ${TURNS} decisions per game, CPU throttling ${P.rates.join('×, ')}×; every decision confirmed by an external breakpoint`,'',
+  `- Games: ${P.games} (seats alternate), ${TURNS} decisions per game, CPU throttling ${P.rates.join('×, ')}×; every decision confirmed by an external breakpoint`,
+  ...(SAME?[`- Novice vs Novice: both seats call the same plan function; calls attributed by the trusted schedule (engine order); every call's argument must be the primitive side string of the schedule; only the measured seat is timed, the opponent's ${P.games*TURNS} calls per rate are confirmed and counted`]:[]),'',
   '| CPU | Side | Decisions | p50 ms | p95 ms | p99 ms | Max ms | >1 s |','|---|---|---|---|---|---|---|---|',
   ...P.rates.flatMap(rate=>['all','p','e'].map(k=>row(rate,k,results[rate][k]))),'',
   `Each decision includes the external counting pause (calibration p50 / max ms: ${P.rates.map(r=>`${r}× ${calibration[r].p50} / ${calibration[r].max}`).join(', ')}).`,

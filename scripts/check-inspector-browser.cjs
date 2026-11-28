@@ -53,7 +53,8 @@ function expectFail(name,r,re){
  if(MODE==='outside'){
   // Outside the barrier a strict run refuses before starting the browser.
   const r=await run(good.dir,good.sha,[],{PATH:process.env.PATH,HOME:process.env.HOME||tmp});
-  expectFail('strict run outside the isolation barrier',r,/isolation: network not isolated|isolation: running as root/);
+  // Any concrete isolation refusal (network, root, environment, writable files) — never a measurement.
+  expectFail('strict run outside the isolation barrier',r,/^isolation: /);
   console.log(`PASS: inspector browser measurer, outside mode (${done.join(', ')})`);return;
  }
  // Positive: complete, externally confirmed data for every rate and both sides.
@@ -69,6 +70,27 @@ function expectFail(name,r,re){
    assert(r.raw.segments.byRate[rate].every(s=>s[2]===s[3]),'every decision confirmed externally');
    assert.equal(r.raw.segments.byRate[rate].length,14,'7 segments per game');}
   done.push('positive');}
+ // Novice vs Novice: both seats call one plan function; only the measured seat is timed, both are confirmed.
+ {const r=await run(good.dir,good.sha,['--strategy=novice']);
+  assert.equal(r.status,0,`novice positive run failed: ${r.err&&r.err.error} ${r.stderr.slice(-500)}`);
+  assert.equal(r.ok.target.strategy.id,'novice');assert.equal(r.ok.verification.opponentDecisionsConfirmed,12);
+  for(const rate of ['1','4']){const x=r.ok.results[rate],seg=r.raw.segments.byRate[rate];
+   assert.equal(x.all.n,12);assert.equal(x.p.n,6);assert.equal(x.e.n,6);
+   assert.equal(r.raw.byRate[rate].length,12,'novice: only the measured seat timed');
+   assert(seg.every(s=>s[2]===s[3]),'novice: every call (both seats) confirmed externally');
+   assert.equal(seg.reduce((a,s)=>a+s[6],0),12,'novice: 6 measured calls per game');assert.equal(seg.reduce((a,s)=>a+s[7],0),12,'novice: 6 opponent calls per game');
+   for(let g=0;g<2;g++){const t=r.raw.byRate[rate].filter(c=>c[0]===g);assert.deepEqual(t.map(c=>c[2]),[1,2,3,4,5,6]);assert(t.every(c=>c[1]===(g%2?'e':'p')),'novice: measured seat only');}}
+  done.push('novice positive (both seats confirmed, measured seat timed)');}
+ const nov=async(name,patch,re)=>{const t=repo(name,patch);expectFail(name,await run(t.dir,t.sha,['--strategy=novice']),re);};
+ await nov('novice: opponent decision skipped',at(AIPLAN,"if(aiSides.p===aiSides.e&&G.turn===3&&o==='e')return;"),/decision count mismatch/);
+ await nov('novice: extra plan call per turn',at(AIPLAN,"{const s=aiStrategy(o);if(s.legacy&&G.turn===2)s.plan(o);}"),/decision count mismatch/);
+ await nov('novice: plan called with the other side',s=>s.replace('if(s.legacy)return s.plan(o);',"if(s.legacy)return s.plan(o==='p'?'e':'p');"),/side of a call differs/);
+ // Non-string side arguments with the correct number of calls: the target's plan converts each back to the right
+ // side, so the game runs unchanged and all counts match; the measurer must still refuse (side not proven).
+ for(const [name,arg] of [['object with toString','{toString:()=>o,valueOf:()=>o}'],['String wrapper object','new String(o)'],
+  ['array','[o]'],['object with Symbol.toPrimitive','{[Symbol.toPrimitive]:()=>o}']])
+  await nov(`novice: side passed as ${name}`,s=>s.replace('if(s.legacy)return s.plan(o);',`if(s.legacy)return s.plan(${arg});`).replace('function noviceAiPlan(o){','function noviceAiPlan(o){o=String(o);'),/side of a call differs/);
+ await nov('novice: plan called around the wrapper',s=>at(AIPLAN,"if(aiStrategy(o).legacy&&globalThis.__orig&&G.turn===4)return globalThis.__orig(o);")(s)+"\nglobalThis.__orig=AI_STRATEGIES.novice.plan;\n",/outside the trusted wrapper|decision count mismatch/);
  // Forged results and skipped execution.
  expectFail('forged log, strategy never executed',await run(...Object.values(repo('forged-log',s=>at(NEWGAME,"globalThis.__t=Array.from({length:12},(_,i)=>({ms:0,side:i%2?'e':'p',turn:1+(i%6),game:0}));")(at(AIPLAN,'return;')(s))))),/decision count mismatch/);
  expectFail('decision skipped on turn 6',await run(...Object.values(repo('skip-turn6',at(AIPLAN,"if(G.turn===6&&o==='e')return;")))),/decision count mismatch/);
