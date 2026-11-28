@@ -3,7 +3,7 @@
  "kind": "gifted-behaviour-baseline",
  "scope": "identical behaviour in the played scenarios only; see docs/refactor-baseline/README.md",
  "code": {
-  "commitNote": "measured on the checkout given by --root",
+  "baseCommit": "ebf36575d7a609b7d6856326949df6fd5ba79ba1",
   "gameSha256": "84644290779b3141b4d5a3fc905bd43ac0421b5c4716b1fd5b2f8064a3b23ee6",
   "tutorialSha256": "6b7a35d773faa889361d8c3da85e3cbc1a1a56191d7538328a52263f638f1e57"
  },
@@ -15,17 +15,47 @@
  },
  "components": {
   "novice": {
-   "sha256": "03318187f98cbc77155d17902c97df188db2c4c8c07821cce840962eeba67f15",
+   "sha256": "223aa4d10c46b4deeed3c735646af329bab30135374dd640274608126af094b4",
    "detail": {
+    "decl:function noviceAiPlan(": 1,
+    "decl:function aiPlan(": 1,
+    "decl:function aiStrategy(": 1,
+    "decl:function aiChoose(": 1,
+    "decl:function registerAiStrategy(": 1,
+    "decl:const AI_BASELINE=": 1,
+    "decl:const AI_STRATEGIES=": 1,
+    "decl:const aiSides=": 1,
     "planBodySha256": "292745d4a0fc36b85f3afeb616eb1276b234d645c4b8d8a96de902282bba343a",
+    "aiChooseSha256": "9dffbeff5d58d5ba662f6bd3e832167b4654a9fd39460766b4d40a7b54f1a447",
+    "registerAiStrategySha256": "12622d02f8a3a0654fdc0e49f4f8bd31b7d613d968da31e1a50ecb2bddbdab87",
     "referencePlanBodySha256": "292745d4a0fc36b85f3afeb616eb1276b234d645c4b8d8a96de902282bba343a",
-    "dispatch": 1,
-    "choice": 1,
-    "baseline": 1,
-    "register": 1
+    "registration": {
+     "baseline": {
+      "id": "novice",
+      "version": "novice-1",
+      "baseCommit": "2923eafca24d8b23ec0b3de71306ca555919b782"
+     },
+     "keys": [
+      "baseCommit",
+      "id",
+      "legacy",
+      "name",
+      "plan",
+      "version"
+     ],
+     "frozen": true,
+     "legacy": true,
+     "samePlan": true,
+     "id": "novice",
+     "version": "novice-1",
+     "baseCommit": "2923eafca24d8b23ec0b3de71306ca555919b782",
+     "name": "Новичок",
+     "seats": {
+      "p": "novice",
+      "e": "novice"
+     }
+    }
    },
-   "ok": true,
-   "reasons": [],
    "seconds": 0
   },
   "rules": {
@@ -342,7 +372,7 @@
      ]
     }
    },
-   "seconds": 1218
+   "seconds": 1088
   },
   "balance": {
    "sha256": "14194abcb75b370032076cbae9883e92edd7d0daf7065ab5ba6157d289e69e64",
@@ -354,6 +384,6 @@
    "seconds": 1
   }
  },
- "combinedSha256": "d4661097d0165d0caa0a994d4477be3b65f16c373a6a25977ad70370c0b57002",
- "elapsedSeconds": 1219
+ "combinedSha256": "8bbd19048a8338f4c93bf2081a68e5111a4f3b2307d32f15a59a90aa0ed68498",
+ "elapsedSeconds": 1089
 }

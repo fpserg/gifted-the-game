@@ -13,6 +13,7 @@ const BASELINE=path.resolve(arg('baseline',path.join(REPO,'docs','refactor-basel
 // [id, area, file, find, replace, components expected to see it (any of them)]
 const CONTROLS=[
  ['novice-constant','Новичок','game.js',"let s=c.def.power+cost*1.3+Math.random()*2.5;","let s=c.def.power+cost*1.31+Math.random()*2.5;",['novice']],
+ ['novice-dispatch-comment','Новичок (диспетчеризация, обход комментарием)','game.js',"function aiPlan(o){const s=aiStrategy(o);if(s.legacy)return s.plan(o);return s.plan(aiContext(o));}","function aiPlan(o){const s=aiStrategy(o);if(s.legacy)return;return s.plan(aiContext(o));}\n/*\nfunction aiPlan(o){const s=aiStrategy(o);if(s.legacy)return s.plan(o);return s.plan(aiContext(o));}\n*/",['novice']],
  ['novice-threshold','Новичок','game.js',"if(diff<-12)s-=3;","if(diff<-13)s-=3;",['novice']],
  ['tactician-constant','Тактик','game.js',"reduce((s,c)=>s+Math.min(c.def.power,8),0)/8","reduce((s,c)=>s+Math.min(c.def.power,7),0)/8",['ai']],
  ['tactician-uncertainty','Тактик (модель линии)','game.js',"const u=left?1.5+2.4*left+2.5*hidden","const u=left?1.5+2.5*left+2.5*hidden",['ai']],
@@ -32,8 +33,9 @@ const rows=[];let failed=0;
 const gate=(root,extra=[])=>spawnSync(process.execPath,[path.join(__dirname,'behaviour-baseline.cjs'),`--check=${BASELINE}`,`--root=${root}`,'--fail-fast',...extra],{encoding:'utf8',maxBuffer:1<<28,timeout:3600000});
 const copy=()=>{const d=fs.mkdtempSync(path.join(os.tmpdir(),'behaviour-control-'));for(const f of ['game.js','tutorial.js'])fs.copyFileSync(path.join(REPO,f),path.join(d,f));return d;};
 // positive control on the fast components
-{const d=copy(),t=Date.now(),r=gate(d,['--only=novice,rules,tutorial,ui']);const ok=r.status===0&&/IDENTICAL/.test(r.stdout);
- rows.push(['positive (unchanged copy)','—','IDENTICAL expected',ok?'IDENTICAL':'DIFFERENT/ERROR: '+(r.stdout+r.stderr).trim().split('\n').pop(),Math.round((Date.now()-t)/1000),ok]);if(!ok)failed++;fs.rmSync(d,{recursive:true,force:true});}
+// (a partial run reports DIAGNOSTIC ONLY, exit 3: identical, but by design never a gate pass)
+{const d=copy(),t=Date.now(),r=gate(d,['--only=novice,rules,tutorial,ui']);const ok=r.status===3&&/DIAGNOSTIC ONLY \(partial: novice, rules, tutorial, ui identical/.test(r.stdout);
+ rows.push(['positive (unchanged copy, fast components)','—','identical (diagnostic)',ok?'identical, DIAGNOSTIC ONLY':'DIFFERENT/ERROR: '+(r.stdout+r.stderr).trim().split('\n').pop(),Math.round((Date.now()-t)/1000),ok]);if(!ok)failed++;fs.rmSync(d,{recursive:true,force:true});}
 for(const [id,area,file,find,repl,expect] of list){
  const d=copy(),f=path.join(d,file),src=fs.readFileSync(f,'utf8'),n=src.split(find).length-1;
  if(n!==1){rows.push([id,area,expect.join('/'),`anchor found ${n} times`,0,false]);failed++;continue;}
@@ -47,5 +49,5 @@ for(const [id,area,file,find,repl,expect] of list){
 }
 console.log('| Контроль | Область | Ожидаемый компонент | Результат шлюза | с | Итог |\n|---|---|---|---|---|---|');
 for(const r of rows)console.log(`| ${r[0]} | ${r[1]} | ${r[2]} | ${r[3].replace(/\|/g,'¦')} | ${r[4]} | ${r[5]?'PASS':'FAIL'} |`);
-console.log(failed?`FAIL: ${failed} control(s) not as expected`:`PASS: positive control identical, ${list.length}/${list.length} changes detected`);
+console.log(failed?`FAIL: ${failed} control(s) not as expected`:`PASS: positive control identical (diagnostic), ${list.length}/${list.length} changes detected`);
 process.exit(failed?1:0);

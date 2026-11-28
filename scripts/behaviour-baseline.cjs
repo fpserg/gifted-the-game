@@ -19,8 +19,12 @@
 // check-ai-architecture and the Novice contract stay required. See docs/refactor-baseline/README.md.
 //
 // Usage:
-//   node scripts/behaviour-baseline.cjs --write=<file> [--games=10] [--balance=1000]
+//   node scripts/behaviour-baseline.cjs --write=<file> [--base-commit=<commit>] [--games=10] [--balance=1000]
 //   node scripts/behaviour-baseline.cjs --check=<file> [--fail-fast] [--only=novice,rules,...] [--root=<dir>]
+// --check first validates the baseline file (schema, six components, internal hashes, parameters, approved base
+// commit and approved combined hash; exit 2 on any failure). Exit codes: 0 GATE PASS (all six components computed
+// and identical), 1 DIFFERENT, 2 integrity or usage error, 3 DIAGNOSTIC ONLY (a partial run: --only, or
+// --fail-fast stopped early, was identical) — a partial run is never a pass of the gate.
 // --root: directory with game.js and tutorial.js to measure (default: this checkout); used by the controls.
 'use strict';
 const fs=require('fs'),path=require('path'),vm=require('vm'),crypto=require('crypto');
@@ -177,22 +181,65 @@ async function compute(P,{only=ORDER,ref=null,failFast=false}={}){
  return out;
 }
 const params=()=>({games:+arg('games','10'),balance:+arg('balance','1000'),aiSeedFormula:'(48004+pair*1000003+config*7919+game*104729)>>>0',balanceSeed:20261118});
+// The approved baseline (B0, main ebf3657). A new baseline is accepted only by changing these values in a reviewed
+// commit (see docs/refactor-baseline/README.md, "Обновление эталона").
+const APPROVED={baseCommit:'ebf36575d7a609b7d6856326949df6fd5ba79ba1',combinedSha256:'8bbd19048a8338f4c93bf2081a68e5111a4f3b2307d32f15a59a90aa0ed68498',
+ params:{games:10,balance:1000,aiSeedFormula:'(48004+pair*1000003+config*7919+game*104729)>>>0',balanceSeed:20261118}};
+const HEX=/^[0-9a-f]{64}$/;
+const git=a=>require('child_process').execFileSync('git',a,{cwd:REPO,encoding:'utf8',stdio:['ignore','pipe','ignore'],maxBuffer:1<<26});
+const seriesNames=()=>PAIRS.flatMap(([a,b])=>['pve','symmetric'].map(m=>`${a}-${b}-${m}`));
+const combined=components=>sha(ORDER.map(k=>k+':'+components[k].sha256).join('\n'));
+// Integrity of a baseline file before anything is computed: schema, all six components, internal hashes,
+// parameters, binding to the approved base commit (its game.js / tutorial.js) and to the approved combined hash.
+function validateBaseline(ref,{approved=APPROVED}={}){
+ const e=[],is=(c,m)=>{if(!c)e.push(m);};
+ is(ref&&typeof ref==='object','not a JSON object');if(e.length)return e;
+ is(ref.kind==='gifted-behaviour-baseline','kind is not gifted-behaviour-baseline');is(ref.issue==='#48','issue is not #48');
+ const keys=Object.keys(ref).sort().join(),want=['code','combinedSha256','components','elapsedSeconds','issue','kind','params','scope'].sort().join();
+ is(keys===want,`top-level fields ${keys} (expected ${want})`);
+ is(ref.params&&JSON.stringify(ref.params)===JSON.stringify(approved.params),'params differ from the approved parameters '+JSON.stringify(approved.params));
+ const c=ref.components||{};
+ is(JSON.stringify(Object.keys(c).sort())===JSON.stringify([...ORDER].sort()),'components are not exactly '+ORDER.join(', '));
+ for(const k of ORDER){const x=c[k];is(x&&HEX.test(x.sha256||'')&&x.detail&&typeof x.detail==='object',`component ${k}: missing sha256 or detail`);}
+ if(e.length)return e;
+ is(c.novice.sha256===sha(JSON.stringify(c.novice.detail)),'novice: sha256 does not match its detail');
+ is(c.rules.detail.cases===324,'rules: expected 324 cases');is(c.tutorial.detail.steps===56,'tutorial: expected 56 steps');is(c.ui.detail.steps===70,'ui: expected 70 steps');
+ const S=c.ai.detail,names=seriesNames();
+ is(JSON.stringify(Object.keys(S).sort())===JSON.stringify([...names].sort()),'ai: series are not exactly the 12 pair/mode series');
+ for(const n of names){const x=S[n];is(x&&x.games===18*ref.params.games&&HEX.test(x.sha256||'')&&Array.isArray(x.configs)&&x.configs.length===18&&x.configs.every(h=>HEX.test(h)),`ai ${n}: malformed series`);}
+ if(!e.length)is(c.ai.sha256===sha(Object.entries(S).map(([k,v])=>k+':'+v.sha256).join('\n')),'ai: sha256 does not match its series');
+ const b=c.balance.detail;is(b.gamesPerPair===ref.params.balance&&b.seed===ref.params.balanceSeed&&b.totalGames===3*ref.params.balance,'balance: detail does not match the parameters');
+ is(ref.combinedSha256===combined(c),'combinedSha256 does not match the components');
+ is(ref.combinedSha256===approved.combinedSha256,`combinedSha256 is not the approved baseline (${approved.combinedSha256.slice(0,16)}…)`);
+ const code=ref.code||{};is(code.baseCommit===approved.baseCommit,`code.baseCommit is not the approved base ${approved.baseCommit}`);
+ if(code.baseCommit===approved.baseCommit){let g=null,t=null;try{g=git(['show',`${code.baseCommit}:game.js`]);t=git(['show',`${code.baseCommit}:tutorial.js`]);}catch{}
+  is(g!==null&&t!==null,`base commit ${code.baseCommit} not available locally (git fetch it)`);
+  if(g!==null){is(code.gameSha256===sha(g),'code.gameSha256 is not game.js of the base commit');is(code.tutorialSha256===sha(t),'code.tutorialSha256 is not tutorial.js of the base commit');}}
+ return e;
+}
 
 if(require.main===module)(async()=>{
  const write=arg('write',null),check=arg('check',null);
  if(!!write===!!check){console.error('use --write=<file> or --check=<file>');process.exit(2);}
  if(write){
+  if(ROOT!==REPO)throw Error('--write measures this checkout only');
+  // The base commit (default HEAD) must contain exactly the measured game.js and tutorial.js.
+  const head=git(['rev-parse',arg('base-commit','HEAD')]).trim();
+  for(const f of ['game.js','tutorial.js'])if(sha(git(['show',`${head}:${f}`]))!==sha(read(f)))throw Error(`${f} differs from ${head}; a baseline is written only for committed code`);
   const P=params(),t0=Date.now(),components=await compute(P);
   if(!components.novice.ok){console.error('Novice contract does not hold on this code: '+components.novice.reasons.join('; '));process.exit(1);}
+  for(const k of ORDER){delete components[k].ok;delete components[k].reasons;}
   const base={issue:'#48',kind:'gifted-behaviour-baseline',scope:'identical behaviour in the played scenarios only; see docs/refactor-baseline/README.md',
-   code:{commitNote:'measured on the checkout given by --root',gameSha256:sha(read('game.js')),tutorialSha256:sha(read('tutorial.js'))},params:P,components,
-   combinedSha256:sha(ORDER.map(k=>k+':'+components[k].sha256).join('\n')),elapsedSeconds:Math.round((Date.now()-t0)/1000)};
-  fs.writeFileSync(write,JSON.stringify(base,null,1)+'\n');console.log(`wrote ${write}: combined ${base.combinedSha256}`);return;
+   code:{baseCommit:head,gameSha256:sha(read('game.js')),tutorialSha256:sha(read('tutorial.js'))},params:P,components,
+   combinedSha256:combined(components),elapsedSeconds:Math.round((Date.now()-t0)/1000)};
+  fs.writeFileSync(write,JSON.stringify(base,null,1)+'\n');
+  console.log(`wrote ${write}: base ${head}, combined ${base.combinedSha256}; it becomes the gate only after APPROVED in scripts/behaviour-baseline.cjs is updated in a reviewed commit`);return;
  }
- const ref=JSON.parse(fs.readFileSync(check,'utf8'));
- if(ref.kind!=='gifted-behaviour-baseline')throw Error('not a behaviour baseline file');
- for(const k of ['games','balance'])if(arg(k,null)!==null&&+arg(k)!==ref.params[k])throw Error(`--${k} differs from the baseline parameters (${ref.params[k]}); the parameters are fixed by the baseline`);
- const only=(arg('only',ORDER.join(','))).split(',');for(const k of only)if(!ORDER.includes(k))throw Error('unknown component '+k);
+ let ref;try{ref=JSON.parse(fs.readFileSync(check,'utf8'));}catch(e){console.error('INTEGRITY FAIL: baseline is not readable JSON: '+e.message);process.exit(2);}
+ const bad=validateBaseline(ref);
+ if(bad.length){console.error('INTEGRITY FAIL: '+bad.join('; '));process.exit(2);}
+ for(const k of ['games','balance'])if(arg(k,null)!==null&&+arg(k)!==ref.params[k]){console.error(`ERROR: --${k} differs from the baseline parameters (${ref.params[k]}); the parameters are fixed by the baseline`);process.exit(2);}
+ const only=(arg('only',ORDER.join(','))).split(',');for(const k of only)if(!ORDER.includes(k)){console.error('ERROR: unknown component '+k);process.exit(2);}
  const got=await compute(ref.params,{only,ref,failFast:flag('fail-fast')});
  const diff=[];
  for(const k of only){if(!got[k])continue;const a=ref.components[k],b=got[k];
@@ -201,8 +248,10 @@ if(require.main===module)(async()=>{
    if(k==='ai'){for(const [n,s] of Object.entries(b.detail)){const r=a.detail[n];if(r.sha256!==s.sha256){const cfg=s.configs.map((h,i)=>h!==r.configs[i]?i:null).filter(i=>i!==null);diff.push(`ai ${n}: differs in configurations ${cfg.join(',')}`);}}}
    else diff.push(`${k}: ${a.sha256.slice(0,16)} → ${b.sha256.slice(0,16)}`);
   }}
- const missing=ORDER.filter(k=>only.includes(k)&&!got[k]);
- if(diff.length){console.log('DIFFERENT: '+diff.join(' | ')+(missing.length?` (not computed after the first difference: ${missing.join(', ')})`:''));process.exit(1);}
- console.log(`IDENTICAL: ${only.join(', ')} equal the baseline ${path.basename(check)} (in the played scenarios only)`);
+ const computed=ORDER.filter(k=>got[k]&&got[k].sha256),missing=ORDER.filter(k=>!computed.includes(k));
+ const where=ROOT===REPO?'this checkout':ROOT;
+ if(diff.length){console.log('DIFFERENT: '+diff.join(' | ')+(missing.length?` (not computed: ${missing.join(', ')})`:''));process.exit(1);}
+ if(missing.length){console.log(`DIAGNOSTIC ONLY (partial: ${computed.join(', ')} identical; not computed: ${missing.join(', ')}) — this is NOT a pass of the behaviour gate (${where})`);process.exit(3);}
+ console.log(`GATE PASS: all ${ORDER.length} components (${ORDER.join(', ')}) identical to the approved baseline ${ref.combinedSha256.slice(0,16)}… (${where}; in the played scenarios only)`);
 })().catch(e=>{console.error('ERROR: '+(e&&e.stack||e));process.exit(2);});
-module.exports={compute,ORDER};
+module.exports={compute,ORDER,validateBaseline,APPROVED,combined};

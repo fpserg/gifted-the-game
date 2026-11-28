@@ -8,11 +8,32 @@
 Пакет считается эквивалентным, только если выполнены **все** пункты.
 
 1. **Контракт реализации Новичка** — `node scripts/check-novice-contract.cjs`. Нужен коммит `2923eaf`: `git fetch --no-tags --depth=1 origin 2923eafca24d8b23ec0b3de71306ca555919b782`.
-   - Тело `noviceAiPlan` побайтно равно телу `aiPlan` в фиксированной базе `2923eaf`.
-   - Ветка выбора legacy в `aiChoose` использует ровно два редуктора `2923eaf`.
-   - Строки диспетчеризации, `AI_BASELINE` и регистрации закреплены и встречаются ровно по одному разу.
+   - **Проверяется действующий код, а не текст.** `game.js` (и база `2923eaf`) исполняется во `vm`, и функции, реально связанные после загрузки, читаются через `Function.prototype.toString`. Копия строки в комментарии, строке или шаблоне, вторая или переопределённая функция не заменяют действующий код.
+   - Тело действующего `noviceAiPlan` побайтно равно телу действующего `aiPlan` в `2923eaf`.
+   - Действующие `aiPlan` (диспетчеризация legacy) и `aiStrategy` равны закреплённому тексту.
+   - Действующие `aiChoose` и `registerAiStrategy` равны закреплённому SHA-256; редукторы `2923eaf` есть в коде `aiChoose`.
+   - Действующие значения:
+     - `AI_BASELINE`;
+     - запись реестра: заморожена, legacy, `plan === noviceAiPlan`, поля и имя;
+     - места по умолчанию.
+   - **Однозначность.** В коде без комментариев и содержимого строк и шаблонов каждое объявление контракта встречается ровно один раз. Очищенный код обязан компилироваться — это подтверждает разбор.
+   - **Проба диспетчеризации.** На одинаковой позиции с seed `aiPlan(side)` меняет состояние так же, как `noviceAiPlan(side)`, и действительно выкладывает карту.
    - Это прямой контракт. Он ловит изменения, которые сыгранная выборка может не увидеть, — например константу `1.3 → 1.31`.
-2. **Эталон поведения** — `node scripts/behaviour-baseline.cjs --check=docs/refactor-baseline/behaviour-baseline.json`. Около 20 мин в среде Builder (2 CPU). Параметры зафиксированы в файле эталона, другие значения отвергаются.
+2. **Эталон поведения** — `node scripts/behaviour-baseline.cjs --check=docs/refactor-baseline/behaviour-baseline.json`. Около 28 мин в среде Builder (2 CPU).
+   - **Целостность эталона проверяется до вычислений.** Любое нарушение — `INTEGRITY FAIL`, exit 2. Проверяются:
+     - схема и все шесть компонентов;
+     - внутренние хеши (`novice`, `ai` по 12 сериям с 18 конфигурациями, итоговый `combinedSha256`);
+     - параметры — равны утверждённым;
+     - привязка к утверждённой базе: `code.baseCommit = ebf36575d7a609b7d6856326949df6fd5ba79ba1`, его `game.js`/`tutorial.js` дают записанные SHA-256;
+     - `combinedSha256` равен утверждённому значению в `APPROVED` скрипта.
+   - **Исходы:**
+
+     | Код | Значение |
+     |---|---|
+     | 0 | `GATE PASS` — вычислены и совпали **все шесть** компонентов |
+     | 1 | `DIFFERENT` |
+     | 2 | ошибка целостности или использования |
+     | 3 | `DIAGNOSTIC ONLY` — частичный прогон (`--only` или ранняя остановка `--fail-fast`) совпал. **Это не прохождение шлюза** |
 
    | Компонент | Что сравнивается | Объём |
    |---|---|---|
@@ -31,7 +52,12 @@
      ```
      `ba06a99` — родитель изменения инициативы `2923eaf` (#39). Результат на `ebf3657`: PASS — 90/90 различий объяснены правилом инициативы, с прежним правилом 0/90. С `origin/main` по умолчанию сценарий не применим: изменение уже в main, тест даёт ожидаемый FAIL. В критерий этот вариант не входит.
    - `check-gadalka-regression` и `check-normal-regression` по умолчанию сравнивают с `origin/main`, то есть с состоянием до пакета, и остаются в критерии.
-4. **Отрицательные контроли шлюза** — `node scripts/check-behaviour-controls.cjs`. Каждое из 14 малых изменений во временной копии должен быть обнаружен. Неизменённая копия на быстрых компонентах даёт IDENTICAL.
+4. **Отрицательные контроли шлюза:**
+   - `node scripts/check-behaviour-controls.cjs` — каждое из 15 малых изменений во временной копии должно быть обнаружено. Это прежние 14 и обход диспетчеризации Новичка комментарием из инспекции #68. Неизменённая копия на быстрых компонентах даёт совпадение с пометкой `DIAGNOSTIC ONLY` (exit 3).
+   - `node scripts/check-behaviour-gate-integrity.cjs` — быстрые отрицательные контроли двух дефектов инспекции #68 и связанных обходов:
+     - 14 обходов контракта Новичка;
+     - 17 повреждений или подмен эталона;
+     - частичные прогоны и переопределение параметров.
 
 ## Границы вывода
 - **Только сыгранные сценарии.** Совпадение хешей доказывает одинаковое поведение в перечисленных позициях, партиях, шагах и seed — и только в них. Это не доказательство эквивалентности на всех возможных партиях.
@@ -47,42 +73,46 @@
 ## Обновление эталона
 Эталон снимается заново только на main после принятого изменения поведения, отдельным согласованным шагом:
 ```
-node scripts/behaviour-baseline.cjs --write=docs/refactor-baseline/behaviour-baseline.json --games=10 --balance=1000
+node scripts/behaviour-baseline.cjs --write=docs/refactor-baseline/behaviour-baseline.json --base-commit=<main> --games=10 --balance=1000
 ```
-Пакеты B1–B4 эталон не обновляют.
+Затем в том же проверяемом коммите обновляются `APPROVED.baseCommit` и `APPROVED.combinedSha256` в `scripts/behaviour-baseline.cjs`. Без этого новый файл отвергается как неутверждённый. Пакеты B1–B4 эталон не обновляют.
 
 ## Результаты B0 (main `ebf3657`, среда Builder: 2 CPU, Node 22)
+Эталон пересобран после исправления замечаний инспекции #68 и привязан к `ebf3657`. Компонент `novice` изменился, потому что контракт стал проверять действующий код; остальные пять компонентов совпали с первой сборкой.
+
 | Проверка | Итог |
 |---|---|
-| `check-novice-contract` | PASS: тело `noviceAiPlan` = тело `aiPlan` в `2923eaf` (SHA-256 `292745d4…`) |
-| `behaviour-baseline --write` (`--games=10 --balance=1000`) | итог `d4661097d0165d0caa0a994d4477be3b65f16c373a6a25977ad70370c0b57002`, 20 мин |
-| `behaviour-baseline --check` того же кода | **IDENTICAL**: все 6 компонентов, 28 мин; повтор детерминирован |
-| `check-behaviour-controls` | **PASS**: положительный контроль IDENTICAL, 14/14 изменений обнаружены (26 мин) |
+| `check-novice-contract` | PASS: действующее тело `noviceAiPlan` = действующее `aiPlan` в `2923eaf` (SHA-256 `292745d4…`) |
+| `behaviour-baseline --write` (`--base-commit=ebf3657 --games=10 --balance=1000`) | итог `8bbd19048a8338f4c93bf2081a68e5111a4f3b2307d32f15a59a90aa0ed68498` — закреплён в `APPROVED` |
+| `behaviour-baseline --check` неизменённого кода | **GATE PASS**: все 6 компонентов, 30 мин |
+| `check-behaviour-gate-integrity` | **PASS 36/36**: 14 обходов контракта Новичка + неизменённая копия; 17 повреждений эталона отклонены до вычислений (exit 2); частичные прогоны — `DIAGNOSTIC ONLY` (exit 3); переопределение параметров отклонено |
+| `check-behaviour-controls` | **PASS**: положительный контроль — совпадение с пометкой DIAGNOSTIC ONLY; 15/15 изменений обнаружены (34 мин) |
 | `check-initiative-regression ba06a99` | PASS: 90/90 различий объяснены инициативой, с прежним правилом 0/90 |
 
-**Отрицательные контроли** — какой компонент первым увидел изменение. Остальные после первого различия не считались, так как режим `--fail-fast`.
+**Отрицательные контроли** — какой компонент первым увидел изменение. В режиме `--fail-fast` остальные компоненты после первого различия не вычислялись.
 
 | Контроль | Область | Ожидаемый компонент | Результат шлюза | с | Итог |
 |---|---|---|---|---|---|
-| positive (unchanged copy) | — | IDENTICAL expected | IDENTICAL | 1 | PASS |
-| novice-constant | Новичок | novice | novice: contract broken (noviceAiPlan body differs from aiPlan at 2923eaf) (not computed after the first difference: rules, tutorial, ui, ai, balance) | 0 | PASS |
-| novice-threshold | Новичок | novice | novice: contract broken (noviceAiPlan body differs from aiPlan at 2923eaf) (not computed after the first difference: rules, tutorial, ui, ai, balance) | 0 | PASS |
-| tactician-constant | Тактик | ai | ai strategist-novice-pve: differs in configurations 4,7 (not computed after the first difference: balance) | 182 | PASS |
-| tactician-uncertainty | Тактик (модель линии) | ai | ai tactician-novice-pve: differs in configurations 0,11,12,15,17 (not computed after the first difference: balance) | 9 | PASS |
-| strategist-seed | Стратег | ai | ai strategist-novice-pve: differs in configurations 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17 (not computed after the first difference: balance) | 177 | PASS |
-| sandbox-rng | RNG песочницы ИИ | ai | ai tactician-novice-pve: differs in configurations 15 (not computed after the first difference: balance) | 9 | PASS |
-| match-rng-draw | RNG матча (лишний вызов) | rules/ui/ai/balance | rules: ab025e6a890eb5f7 → 4737d61919232fc8 (not computed after the first difference: tutorial, ui, ai, balance) | 1 | PASS |
-| initiative-tie | Правило инициативы | rules/tutorial/ui/ai/balance | rules: ab025e6a890eb5f7 → d8883414f6cb96f9 (not computed after the first difference: tutorial, ui, ai, balance) | 1 | PASS |
-| card-cost | Правило карты (стоимость k1) | rules/ui/ai/balance | rules: ab025e6a890eb5f7 → 8b9697a63b729530 (not computed after the first difference: tutorial, ui, ai, balance) | 1 | PASS |
-| location-effect | Правило локации (Кузня) | rules/ui/ai/balance | rules: ab025e6a890eb5f7 → 0b243cc4f7cd5233 (not computed after the first difference: tutorial, ui, ai, balance) | 1 | PASS |
-| astro-target | Выбор цели (Астромантка) | rules/ui/ai/balance | balance: 14194abcb75b3700 → 5aea5b0ccf85b8c7 | 1180 | PASS |
-| tutorial-text | Обучение (текст урока) | tutorial | tutorial: 657dd943eb12ccfb → 8e8e24f904fcc6bd (not computed after the first difference: ui, ai, balance) | 1 | PASS |
-| ui-render | UI стола (разметка) | tutorial/ui | tutorial: 657dd943eb12ccfb → a89e66f47c66a9c4 (not computed after the first difference: ui, ai, balance) | 1 | PASS |
-| ui-library | UI библиотеки (текст) | ui | ui: fd611c2766271aed → 5ce52779d5308f23 (not computed after the first difference: ai, balance) | 1 | PASS |
-PASS: positive control identical, 14/14 changes detected
+| positive (unchanged copy, fast components) | — | identical (diagnostic) | identical, DIAGNOSTIC ONLY | 1 | PASS |
+| novice-constant | Новичок | novice | novice: contract broken (live noviceAiPlan body differs from live aiPlan at 2923eaf) (not computed: rules, tutorial, ui, ai, balance) | 0 | PASS |
+| novice-dispatch-comment | Новичок (диспетчеризация, обход комментарием) | novice | novice: contract broken (live aiPlan (legacy dispatch) differs from the pinned text; dispatch probe 0: aiPlan('p') does not act as noviceAiPlan('p'); dispatch p | 1 | PASS |
+| novice-threshold | Новичок | novice | novice: contract broken (live noviceAiPlan body differs from live aiPlan at 2923eaf) (not computed: rules, tutorial, ui, ai, balance) | 0 | PASS |
+| tactician-constant | Тактик | ai | ai strategist-novice-pve: differs in configurations 4,7 (not computed: ai, balance) | 206 | PASS |
+| tactician-uncertainty | Тактик (модель линии) | ai | ai tactician-novice-pve: differs in configurations 0,11,12,15,17 (not computed: ai, balance) | 9 | PASS |
+| strategist-seed | Стратег | ai | ai strategist-novice-pve: differs in configurations 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17 (not computed: ai, balance) | 193 | PASS |
+| sandbox-rng | RNG песочницы ИИ | ai | ai tactician-novice-pve: differs in configurations 15 (not computed: ai, balance) | 9 | PASS |
+| match-rng-draw | RNG матча (лишний вызов) | rules/ui/ai/balance | rules: ab025e6a890eb5f7 → 4737d61919232fc8 (not computed: tutorial, ui, ai, balance) | 1 | PASS |
+| initiative-tie | Правило инициативы | rules/tutorial/ui/ai/balance | rules: ab025e6a890eb5f7 → d8883414f6cb96f9 (not computed: tutorial, ui, ai, balance) | 1 | PASS |
+| card-cost | Правило карты (стоимость k1) | rules/ui/ai/balance | rules: ab025e6a890eb5f7 → 8b9697a63b729530 (not computed: tutorial, ui, ai, balance) | 1 | PASS |
+| location-effect | Правило локации (Кузня) | rules/ui/ai/balance | rules: ab025e6a890eb5f7 → 0b243cc4f7cd5233 (not computed: tutorial, ui, ai, balance) | 1 | PASS |
+| astro-target | Выбор цели (Астромантка) | rules/ui/ai/balance | balance: 14194abcb75b3700 → 8cbb729e54d6b0e7 | 1619 | PASS |
+| tutorial-text | Обучение (текст урока) | tutorial | tutorial: 657dd943eb12ccfb → 8e8e24f904fcc6bd (not computed: ui, ai, balance) | 1 | PASS |
+| ui-render | UI стола (разметка) | tutorial/ui | tutorial: 657dd943eb12ccfb → a89e66f47c66a9c4 (not computed: ui, ai, balance) | 1 | PASS |
+| ui-library | UI библиотеки (текст) | ui | ui: fd611c2766271aed → 5ce52779d5308f23 (not computed: ai, balance) | 1 | PASS |
+PASS: positive control identical (diagnostic), 15/15 changes detected
 
 **Что показали контроли:**
-- **Изменения Новичка видит только прямой контракт.** Изменение `1.3 → 1.31` в инспекции #64 не изменило ни одной из 216 партий с Новичком, а `check-ai-architecture` прошёл.
+- **Изменения Новичка видит только прямой контракт.** Изменение `1.3 → 1.31` не изменило ни одной из 216 партий с Новичком, а `check-ai-architecture` прошёл (инспекция #64).
 - **Изменение веса сильных карт в оценке Тактика** (`Math.min(power, 8 → 7)`) не проявилось в сериях Т/Н и Т/Т. Его увидела только серия С/Н, где Стратег использует оценку Тактика.
 - **Изменение оценки цели Астромантки** (`laneTotal*.05 → .06`, режим блокировки) не изменило ни 324 позиции правил, ни шаги UI, ни 2 160 партий ИИ. Его увидел только симулятор баланса на 3 000 партиях.
-- **Вывод:** обнаружение — свойство всего шлюза. Отдельный компонент не доказывает эквивалентность, и ни один пункт состава шлюза нельзя пропускать.
+- **Вывод:** обнаружение — свойство всего шлюза. Отдельный компонент не доказывает эквивалентность, ни один пункт состава шлюза нельзя пропускать, а частичный прогон не считается прохождением.
